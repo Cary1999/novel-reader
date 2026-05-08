@@ -1,0 +1,32 @@
+# 当前执行计划
+
+当前指向：
+
+- 已完成：`docs/exec-plans/phase-0-harness-skeleton.md`
+- 已完成：`docs/exec-plans/phase-1-project-scaffold.md`
+- 本轮基础验证已完成：`docs/exec-plans/phase-2-mvp-hardening.md`
+- 已完成：`docs/exec-plans/phase-3-upload-limit-50mb.md`
+- 已完成：`docs/exec-plans/phase-4-admin-book-management.md`
+- 已完成：`docs/exec-plans/phase-5-user-authoring-account-categories-search-empty.md`
+
+## 当前状态
+
+当前已完成项目骨架和 MVP 业务代码实现。
+
+新需求“上传小说大小限制改为 50MB”已完成实现和验证。
+
+新需求“后台小说和章节管理”已完成实现和验证。
+
+Phase 2 的本轮 MVP 构建、接口和 smoke 验证已完成；浏览器视觉细节验收仍可继续补充。
+
+新需求“用户创作、账号资料、分类治理和搜索空状态修复”已完成实现和验证。
+
+## 下一步
+
+建议下一步进入：
+
+- 重启当前占用 `8000` 端口的本地后端进程，让运行中的服务应用最新后台管理接口和 50MB 上传限制。
+- 或释放 `8000` 端口后重启 Docker 后端容器。
+- 补充浏览器级移动端和桌面端视觉验收。
+- 后续新需求继续先使用 `harness-agent-team` 更新 Harness 草案。
+- 可补充浏览器级移动端和桌面端视觉验收。

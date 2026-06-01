@@ -41,25 +41,30 @@ export function LoginPage() {
 
   return (
     <main className="page auth-page shell">
-      <section className="auth-panel">
-        <p className="eyebrow">登录</p>
-        <h1>继续阅读章节正文</h1>
-        <form className="form-stack" onSubmit={handleSubmit}>
-          <label>
-            用户名
-            <input value={username} maxLength={40} onChange={(event) => setUsername(event.target.value)} autoComplete="username" />
-          </label>
-          <label>
-            密码
-            <input value={password} minLength={6} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" />
-          </label>
-          {error ? <p className="form-error">{error}</p> : null}
-          <button className="primary-button wide" type="submit" disabled={isSubmitting}>
-            <LogIn size={18} aria-hidden="true" />
-            {isSubmitting ? "登录中..." : "登录"}
-          </button>
-        </form>
-        <p className="auth-switch">还没有账号？<Link to="/register" state={{ from: location.state }}>去注册</Link></p>
+      <section className="auth-shell">
+        <div className="auth-aside">
+          <p className="eyebrow">登录</p>
+          <h1>继续你的阅读进度</h1>
+          <p className="muted">登录后可以阅读章节正文、上传 txt 小说，并维护自己的作品内容。</p>
+        </div>
+        <section className="auth-panel">
+          <form className="form-stack" onSubmit={handleSubmit}>
+            <label>
+              用户名
+              <input value={username} maxLength={40} onChange={(event) => setUsername(event.target.value)} autoComplete="username" />
+            </label>
+            <label>
+              密码
+              <input value={password} minLength={6} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" />
+            </label>
+            {error ? <p className="form-error">{error}</p> : null}
+            <button className="primary-button wide" type="submit" disabled={isSubmitting}>
+              <LogIn size={18} aria-hidden="true" />
+              {isSubmitting ? "登录中..." : "登录"}
+            </button>
+          </form>
+          <p className="auth-switch">还没有账号？<Link to="/register" state={{ from: location.state }}>去注册</Link></p>
+        </section>
       </section>
     </main>
   );

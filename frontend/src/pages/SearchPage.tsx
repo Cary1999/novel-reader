@@ -62,10 +62,11 @@ export function SearchPage() {
 
   return (
     <main className="page shell">
-      <section className="search-toolbar">
+      <section className="page-banner search-banner">
         <div>
           <p className="eyebrow">搜索</p>
           <h1>{pageTitle}</h1>
+          <p className="muted">按书名、作者或分类筛选书库，结果页保持稳定空状态，不会白屏。</p>
         </div>
         <SearchForm
           initialQuery={query}
@@ -83,7 +84,7 @@ export function SearchPage() {
       {isLoading ? <LoadingState label="正在搜索..." /> : null}
       {error ? <ErrorState message={error} onRetry={load} /> : null}
       {!isLoading && !error && books.length === 0 ? (
-        <EmptyState title="没有找到匹配小说" description="换一个关键词或分类再试试。" />
+        <EmptyState title="没有找到匹配小说" description="换一个关键词、作者名或分类再试试。" />
       ) : null}
       {!isLoading && !error && books.length > 0 ? (
         <>

@@ -238,7 +238,7 @@ export function AdminBooksPage() {
 
   return (
     <main className="page shell admin-page">
-      <section className="admin-header">
+      <section className="page-banner admin-banner">
         <div>
           <p className="eyebrow">{isAdmin ? "管理员工具" : "作者工具"}</p>
           <h1>{pageTitle}</h1>
@@ -260,7 +260,7 @@ export function AdminBooksPage() {
       {error ? <ErrorState message={error} onRetry={() => loadBooks(page)} /> : null}
 
       <section className="admin-manager-grid">
-        <div className="admin-book-list">
+        <div className="admin-book-list panel">
           <form className="admin-search" onSubmit={handleSearch}>
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索书名或简介" />
             <button className="primary-button compact" type="submit">搜索</button>

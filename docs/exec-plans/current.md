@@ -8,6 +8,7 @@
 - 已完成：`docs/exec-plans/phase-3-upload-limit-50mb.md`
 - 已完成：`docs/exec-plans/phase-4-admin-book-management.md`
 - 已完成：`docs/exec-plans/phase-5-user-authoring-account-categories-search-empty.md`
+- 当前进行中：`docs/exec-plans/phase-6-ui-refresh-modern-reading-site.md`
 
 ## 当前状态
 
@@ -21,6 +22,8 @@ Phase 2 的本轮 MVP 构建、接口和 smoke 验证已完成；浏览器视觉
 
 新需求“用户创作、账号资料、分类治理和搜索空状态修复”已完成实现和验证。
 
+新需求“现代中文阅读站风格 UI 改版”已确认 Harness 草案，进入前端实现阶段。
+
 ## 下一步
 
 建议下一步进入：
@@ -30,3 +33,4 @@ Phase 2 的本轮 MVP 构建、接口和 smoke 验证已完成；浏览器视觉
 - 补充浏览器级移动端和桌面端视觉验收。
 - 后续新需求继续先使用 `harness-agent-team` 更新 Harness 草案。
 - 可补充浏览器级移动端和桌面端视觉验收。
+- 完成 Phase 6 前端改版后，补一次浏览器级桌面端和移动端视觉验收。

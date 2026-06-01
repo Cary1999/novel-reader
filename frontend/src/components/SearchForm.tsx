@@ -20,7 +20,7 @@ export function SearchForm({ initialQuery = "", initialCategory = "", categories
 
   return (
     <form className="search-form" onSubmit={handleSubmit}>
-      <label className="input-with-icon">
+      <label className="input-with-icon search-query-field">
         <Search size={18} aria-hidden="true" />
         <span className="sr-only">搜索关键词</span>
         <input
@@ -39,9 +39,9 @@ export function SearchForm({ initialQuery = "", initialCategory = "", categories
           ))}
         </select>
       </label>
-      <button className="primary-button" type="submit">
+      <button className="primary-button search-submit" type="submit">
         <Search size={17} aria-hidden="true" />
-        搜索
+        搜索书库
       </button>
     </form>
   );

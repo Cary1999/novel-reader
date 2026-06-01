@@ -1,4 +1,4 @@
-import { BookOpen, List, LockKeyhole } from "lucide-react";
+import { BookOpen, List, LockKeyhole, ScrollText } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { apiClient, ApiError } from "../api/client";
@@ -62,7 +62,10 @@ export function BookDetailPage() {
   return (
     <main className="page shell">
       <section className="detail-header">
-        <div className="detail-cover" aria-hidden="true"><BookOpen size={50} /></div>
+        <div className="detail-cover" aria-hidden="true">
+          <div className="detail-cover-spine" />
+          <BookOpen size={50} />
+        </div>
         <div>
           <p className="eyebrow">{book.category || "未分类"}</p>
           <h1>{book.title}</h1>
@@ -81,6 +84,10 @@ export function BookDetailPage() {
             ) : null}
             <Link className="ghost-button" to="/search">返回搜索</Link>
           </div>
+          <div className="detail-notes">
+            <span><ScrollText size={16} aria-hidden="true" />目录随上传和编辑实时更新</span>
+            <span><List size={16} aria-hidden="true" />支持按章节连续阅读</span>
+          </div>
         </div>
       </section>
 
@@ -96,7 +103,7 @@ export function BookDetailPage() {
         <div className="section-heading">
           <div>
             <p className="eyebrow">目录</p>
-            <h2>章节列表</h2>
+            <h2>章节目录</h2>
           </div>
           <span className="muted">{chapters.length} 章</span>
         </div>

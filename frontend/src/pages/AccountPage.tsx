@@ -45,7 +45,7 @@ export function AccountPage() {
 
   return (
     <main className="page shell admin-page">
-      <section className="admin-header">
+      <section className="page-banner admin-banner">
         <div>
           <p className="eyebrow">账号</p>
           <h1>账号设置</h1>

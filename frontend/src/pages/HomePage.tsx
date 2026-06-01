@@ -1,4 +1,4 @@
-import { ArrowRight, ListOrdered, Sparkles } from "lucide-react";
+import { ArrowRight, Compass, Flame, ListOrdered, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { apiClient, ApiError } from "../api/client";
@@ -44,21 +44,38 @@ export function HomePage() {
     <main className="page">
       <section className="discover-hero">
         <div className="shell hero-inner">
-          <div>
+          <div className="hero-copy-block">
             <p className="eyebrow">发现好故事</p>
-            <h1>本地书库，安静阅读</h1>
-            <p className="hero-copy">搜索、查看详情、登录后按章节阅读，也可以让管理员上传新的 txt 小说。</p>
+            <h1>像私人书房一样读书</h1>
+            <p className="hero-copy">搜索、筛选、查看目录、登录后按章节阅读，也可以上传和维护你自己的 txt 小说。</p>
+            <div className="hero-stats">
+              <div>
+                <strong>{categories.length}</strong>
+                <span>已收录分类</span>
+              </div>
+              <div>
+                <strong>{books.length}</strong>
+                <span>首页展示新书</span>
+              </div>
+              <div>
+                <strong>{rankedBooks.length}</strong>
+                <span>当前榜单条目</span>
+              </div>
+            </div>
           </div>
-          <SearchForm
-            categories={categories}
-            onSubmit={(query, category) => {
-              const params = new URLSearchParams();
-              if (query) params.set("q", query);
-              if (category) params.set("category", category);
-              navigate(`/search${params.size ? `?${params}` : ""}`);
-            }}
-          />
         </div>
+      </section>
+
+      <section className="shell home-search-row" aria-label="搜索书库">
+        <SearchForm
+          categories={categories}
+          onSubmit={(query, category) => {
+            const params = new URLSearchParams();
+            if (query) params.set("q", query);
+            if (category) params.set("category", category);
+            navigate(`/search${params.size ? `?${params}` : ""}`);
+          }}
+        />
       </section>
 
       <section className="shell content-grid">
@@ -66,7 +83,7 @@ export function HomePage() {
           <div className="section-heading">
             <div>
               <p className="eyebrow">新书</p>
-              <h2>最近入库</h2>
+              <h2>最新入库</h2>
             </div>
             <Link className="text-link" to="/search">
               查看更多
@@ -90,7 +107,7 @@ export function HomePage() {
           <section className="panel">
             <div className="panel-title">
               <Sparkles size={18} aria-hidden="true" />
-              <h2>分类入口</h2>
+              <h2>快速分类</h2>
             </div>
             <div className="category-list">
               {categories.length ? categories.map((item) => (
@@ -104,7 +121,7 @@ export function HomePage() {
           <section className="panel">
             <div className="panel-title">
               <ListOrdered size={18} aria-hidden="true" />
-              <h2>章节榜</h2>
+              <h2>章节热榜</h2>
             </div>
             <ol className="rank-list">
               {rankedBooks.map((book) => (
@@ -115,6 +132,14 @@ export function HomePage() {
               ))}
             </ol>
             {!rankedBooks.length ? <p className="muted">暂无榜单数据</p> : null}
+          </section>
+
+          <section className="panel ambient-panel">
+            <div className="panel-title">
+              <Flame size={18} aria-hidden="true" />
+              <h2>阅读提示</h2>
+            </div>
+            <p className="muted">游客可搜索与查看详情，登录后可直接进入章节阅读；上传后的小说也会在书库中展示。</p>
           </section>
         </aside>
       </section>

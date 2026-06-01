@@ -61,7 +61,7 @@ export function AdminUploadPage() {
 
   return (
     <main className="page shell admin-page">
-      <section className="admin-header">
+      <section className="page-banner admin-banner">
         <div>
           <p className="eyebrow">{isAdmin ? "管理员工具" : "作者工具"}</p>
           <h1>上传 txt 小说</h1>

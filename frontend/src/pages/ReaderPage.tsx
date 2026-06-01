@@ -152,7 +152,10 @@ export function ReaderPage() {
         </aside>
 
         <article className="reader-article" style={{ fontSize }}>
-          <p className="eyebrow">{book?.title}</p>
+          <div className="reader-article-head">
+            <p className="eyebrow">{book?.title}</p>
+            <span className="reader-progress">第 {chapter.index} 章 / 共 {chapters.length} 章</span>
+          </div>
           <h1>{chapter.title}</h1>
           {paragraphs.map((paragraph, index) => (
             <p key={`${chapter.id}-${index}`}>{paragraph}</p>

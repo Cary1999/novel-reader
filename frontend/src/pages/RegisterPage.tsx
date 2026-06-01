@@ -55,29 +55,34 @@ export function RegisterPage() {
 
   return (
     <main className="page auth-page shell">
-      <section className="auth-panel">
-        <p className="eyebrow">注册</p>
-        <h1>创建阅读账号</h1>
-        <form className="form-stack" onSubmit={handleSubmit}>
-          <label>
-            用户名
-            <input value={username} maxLength={40} onChange={(event) => setUsername(event.target.value)} autoComplete="username" />
-          </label>
-          <label>
-            密码
-            <input value={password} minLength={6} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="new-password" />
-          </label>
-          <label>
-            确认密码
-            <input value={confirmPassword} minLength={6} onChange={(event) => setConfirmPassword(event.target.value)} type="password" autoComplete="new-password" />
-          </label>
-          {error ? <p className="form-error">{error}</p> : null}
-          <button className="primary-button wide" type="submit" disabled={isSubmitting}>
-            <UserPlus size={18} aria-hidden="true" />
-            {isSubmitting ? "注册中..." : "注册并登录"}
-          </button>
-        </form>
-        <p className="auth-switch">已有账号？<Link to="/login" state={{ from: location.state }}>去登录</Link></p>
+      <section className="auth-shell">
+        <div className="auth-aside">
+          <p className="eyebrow">注册</p>
+          <h1>创建你的私人书库账号</h1>
+          <p className="muted">注册后可以继续阅读章节正文，也可以上传和整理你自己的小说内容。</p>
+        </div>
+        <section className="auth-panel">
+          <form className="form-stack" onSubmit={handleSubmit}>
+            <label>
+              用户名
+              <input value={username} maxLength={40} onChange={(event) => setUsername(event.target.value)} autoComplete="username" />
+            </label>
+            <label>
+              密码
+              <input value={password} minLength={6} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="new-password" />
+            </label>
+            <label>
+              确认密码
+              <input value={confirmPassword} minLength={6} onChange={(event) => setConfirmPassword(event.target.value)} type="password" autoComplete="new-password" />
+            </label>
+            {error ? <p className="form-error">{error}</p> : null}
+            <button className="primary-button wide" type="submit" disabled={isSubmitting}>
+              <UserPlus size={18} aria-hidden="true" />
+              {isSubmitting ? "注册中..." : "注册并登录"}
+            </button>
+          </form>
+          <p className="auth-switch">已有账号？<Link to="/login" state={{ from: location.state }}>去登录</Link></p>
+        </section>
       </section>
     </main>
   );

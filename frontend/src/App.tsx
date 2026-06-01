@@ -2,8 +2,7 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { AccountPage } from "./pages/AccountPage";
 import { AdminBooksPage } from "./pages/AdminBooksPage";
-import { AdminCategoriesPage } from "./pages/AdminCategoriesPage";
-import { AdminUploadPage } from "./pages/AdminUploadPage";
+import { AdminDashboardPage } from "./pages/AdminDashboardPage";
 import { BookDetailPage } from "./pages/BookDetailPage";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
@@ -82,34 +81,10 @@ export function App() {
           }
         />
         <Route
-          path="my/upload"
-          element={
-            <AuthRoute>
-              <AdminUploadPage />
-            </AuthRoute>
-          }
-        />
-        <Route
-          path="admin/books"
+          path="admin"
           element={
             <AdminRoute>
-              <AdminBooksPage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="admin/categories"
-          element={
-            <AdminRoute>
-              <AdminCategoriesPage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="admin/upload"
-          element={
-            <AdminRoute>
-              <AdminUploadPage />
+              <AdminDashboardPage />
             </AdminRoute>
           }
         />

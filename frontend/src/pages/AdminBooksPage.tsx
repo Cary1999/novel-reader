@@ -1,10 +1,11 @@
-import { LibraryBig, Plus, RefreshCw, Save, Trash2, Upload } from "lucide-react";
+import { LibraryBig, Plus, RefreshCw, Save, Trash2, Upload, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { apiClient, ApiError } from "../api/client";
-import type { BookSummary, Category, ChapterDetail, ChapterSummary } from "../api/types";
+import type { BookSummary, Category, ChapterDetail, ChapterSummary, UploadSummary } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { EmptyState, ErrorState, LoadingState } from "../components/StateViews";
+import { MAX_UPLOAD_LABEL, validateTxtUploadFile } from "../uploadLimits";
 
 const PAGE_SIZE = 12;
 
@@ -34,8 +35,9 @@ const emptyChapterForm: ChapterForm = {
   content: "",
 };
 
-export function AdminBooksPage() {
+export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
   const { isAdmin } = useAuth();
+  const location = useLocation();
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [books, setBooks] = useState<BookSummary[]>([]);
@@ -54,10 +56,63 @@ export function AdminBooksPage() {
   const [coverPreviewUrl, setCoverPreviewUrl] = useState<string>("");
   const [pendingCoverFile, setPendingCoverFile] = useState<File | null>(null);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [uploadTitle, setUploadTitle] = useState("");
+  const [uploadCategoryId, setUploadCategoryId] = useState("");
+  const [uploadDescription, setUploadDescription] = useState("");
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadError, setUploadError] = useState("");
+  const [uploadSummary, setUploadSummary] = useState<UploadSummary | null>(null);
+  const [isUploadingTxt, setIsUploadingTxt] = useState(false);
 
   const totalPages = Math.max(Math.ceil(total / PAGE_SIZE), 1);
-  const pageTitle = isAdmin ? "小说管理" : "我的作品";
-  const uploadPath = isAdmin ? "/admin/upload" : "/my/upload";
+  const isAdminScope = location.pathname.startsWith("/admin");
+  const pageTitle = isAdminScope ? "小说管理" : "我的作品";
+
+  function openUploadModal() {
+    setUploadError("");
+    setUploadSummary(null);
+    setUploadTitle("");
+    setUploadCategoryId("");
+    setUploadDescription("");
+    setUploadFile(null);
+    setIsUploadOpen(true);
+  }
+
+  async function submitUpload() {
+    setUploadError("");
+    setUploadSummary(null);
+    if (!uploadTitle.trim()) {
+      setUploadError("书名必填");
+      return;
+    }
+    if (!uploadCategoryId) {
+      setUploadError("请选择分类");
+      return;
+    }
+    const fileError = validateTxtUploadFile(uploadFile);
+    if (fileError) {
+      setUploadError(fileError);
+      return;
+    }
+    try {
+      setIsUploadingTxt(true);
+      const response = await (isAdminScope ? apiClient.adminUploadBook : apiClient.uploadBook)({
+        title: uploadTitle.trim(),
+        categoryId: uploadCategoryId,
+        description: uploadDescription.trim(),
+        file: uploadFile!,
+      });
+      setUploadSummary(response);
+      setMessage("上传解析完成");
+      setIsUploadOpen(false);
+      await loadBooks(1);
+    } catch (err) {
+      setUploadError(err instanceof ApiError ? err.message : "上传失败，请稍后再试");
+    } finally {
+      setIsUploadingTxt(false);
+    }
+  }
 
   async function loadBooks(nextPage = page) {
     try {
@@ -65,7 +120,7 @@ export function AdminBooksPage() {
       setError("");
       const [categoryResponse, bookResponse] = await Promise.all([
         apiClient.categories(),
-        isAdmin
+        isAdminScope
           ? apiClient.adminBooks({ q: query.trim(), page: nextPage, pageSize: PAGE_SIZE })
           : apiClient.myBooks({ q: query.trim(), page: nextPage, pageSize: PAGE_SIZE }),
       ]);
@@ -264,15 +319,15 @@ export function AdminBooksPage() {
   useEffect(() => {
     void loadBooks(page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, isAdmin]);
+  }, [page, isAdminScope]);
 
   const selectedHeading = useMemo(() => {
     if (isCreating) return "新建小说";
     return selectedBook ? `管理《${selectedBook.title}》` : "选择一本小说";
   }, [isCreating, selectedBook]);
 
-  return (
-    <main className="page shell admin-page">
+  const content = (
+    <>
       <section className="page-banner admin-banner">
         <div>
           <p className="eyebrow">{isAdmin ? "管理员工具" : "作者工具"}</p>
@@ -284,10 +339,10 @@ export function AdminBooksPage() {
             <Plus size={16} aria-hidden="true" />
             新建小说
           </button>
-          <Link className="ghost-button compact" to={uploadPath}>
+          <button className="ghost-button compact" type="button" onClick={openUploadModal}>
             <Upload size={16} aria-hidden="true" />
             上传 txt
-          </Link>
+          </button>
         </div>
       </section>
 
@@ -486,6 +541,71 @@ export function AdminBooksPage() {
           ) : null}
         </section>
       </section>
+
+      {isUploadOpen ? (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="上传 txt 小说">
+          <div className="modal panel">
+            <div className="modal-head">
+              <div>
+                <p className="eyebrow">{isAdminScope ? "管理员工具" : "作者工具"}</p>
+                <h2>上传 txt 小说</h2>
+              </div>
+              <button className="ghost-button icon-button" type="button" onClick={() => setIsUploadOpen(false)} aria-label="关闭">
+                <X size={18} aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="form-stack">
+              <label>
+                书名
+                <input value={uploadTitle} maxLength={120} onChange={(e) => setUploadTitle(e.target.value)} />
+              </label>
+              <label>
+                分类
+                <select value={uploadCategoryId} onChange={(e) => setUploadCategoryId(e.target.value)}>
+                  <option value="">请选择分类</option>
+                  {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </label>
+              <label>
+                简介
+                <textarea value={uploadDescription} rows={4} maxLength={1000} onChange={(e) => setUploadDescription(e.target.value)} placeholder="可选" />
+              </label>
+              <label className="file-drop">
+                <Upload size={22} aria-hidden="true" />
+                <span>{uploadFile ? uploadFile.name : "选择 .txt 文件"}</span>
+                <small>{uploadFile ? `${(uploadFile.size / 1024).toFixed(1)} KB` : `最大 ${MAX_UPLOAD_LABEL}`}</small>
+                <input
+                  type="file"
+                  accept=".txt,text/plain"
+                  onChange={(e) => {
+                    const nextFile = e.target.files?.[0] ?? null;
+                    setUploadFile(nextFile);
+                    setUploadError(validateTxtUploadFile(nextFile));
+                  }}
+                />
+              </label>
+              {uploadError ? <p className="form-error">{uploadError}</p> : null}
+              {uploadSummary ? <p className="muted">已解析：{uploadSummary.chapterCount} 章</p> : null}
+              <div className="modal-actions">
+                <button className="ghost-button" type="button" onClick={() => setIsUploadOpen(false)}>取消</button>
+                <button className="primary-button" type="button" disabled={isUploadingTxt} onClick={() => void submitUpload()}>
+                  <Upload size={18} aria-hidden="true" />
+                  {isUploadingTxt ? "上传解析中..." : "上传并解析"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <main className="page shell admin-page">
+      {content}
     </main>
   );
 }

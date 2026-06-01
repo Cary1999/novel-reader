@@ -15,7 +15,7 @@ import (
 )
 
 func TestChapterDetailRequiresLogin(t *testing.T) {
-	handler, _ := testHandler()
+	handler, _ := testHandler(t)
 	req := httptest.NewRequest(http.MethodGet, "/api/books/1/chapters/2", nil)
 	rec := httptest.NewRecorder()
 
@@ -28,7 +28,7 @@ func TestChapterDetailRequiresLogin(t *testing.T) {
 }
 
 func TestChapterDetailAllowsAuthenticatedUser(t *testing.T) {
-	handler, tokens := testHandler()
+	handler, tokens := testHandler(t)
 	token, err := tokens.Issue(domain.User{ID: 7, Username: "reader", Role: domain.RoleUser})
 	if err != nil {
 		t.Fatal(err)
@@ -52,7 +52,7 @@ func TestChapterDetailAllowsAuthenticatedUser(t *testing.T) {
 }
 
 func TestAdminUploadRejectsNonAdminToken(t *testing.T) {
-	handler, tokens := testHandler()
+	handler, tokens := testHandler(t)
 	token, err := tokens.Issue(domain.User{ID: 7, Username: "reader", Role: domain.RoleUser})
 	if err != nil {
 		t.Fatal(err)
@@ -70,7 +70,7 @@ func TestAdminUploadRejectsNonAdminToken(t *testing.T) {
 }
 
 func TestAdminBookManagementRejectsNonAdminToken(t *testing.T) {
-	handler, tokens := testHandler()
+	handler, tokens := testHandler(t)
 	token, err := tokens.Issue(domain.User{ID: 7, Username: "reader", Role: domain.RoleUser})
 	if err != nil {
 		t.Fatal(err)
@@ -88,7 +88,7 @@ func TestAdminBookManagementRejectsNonAdminToken(t *testing.T) {
 }
 
 func TestAdminAddChapterAllowsAdmin(t *testing.T) {
-	handler, tokens := testHandler()
+	handler, tokens := testHandler(t)
 	token, err := tokens.Issue(domain.User{ID: 1, Username: "admin", Role: domain.RoleAdmin})
 	if err != nil {
 		t.Fatal(err)
@@ -112,7 +112,7 @@ func TestAdminAddChapterAllowsAdmin(t *testing.T) {
 }
 
 func TestAdminUploadParsesOnlyForAdmin(t *testing.T) {
-	handler, tokens := testHandler()
+	handler, tokens := testHandler(t)
 	token, err := tokens.Issue(domain.User{ID: 1, Username: "admin", Role: domain.RoleAdmin})
 	if err != nil {
 		t.Fatal(err)
@@ -129,9 +129,10 @@ func TestAdminUploadParsesOnlyForAdmin(t *testing.T) {
 	assertErrorCode(t, rec.Body.String(), "BAD_REQUEST")
 }
 
-func testHandler() (http.Handler, *auth.Manager) {
+func testHandler(t *testing.T) (http.Handler, *auth.Manager) {
+	t.Helper()
 	tokens := auth.NewManager([]byte("test-secret"), time.Hour)
-	h := New(fakeAuth{}, fakeBooks{}, fakeAdmin{}, tokens, 1024)
+	h := New(fakeAuth{}, fakeBooks{}, fakeAdmin{}, tokens, 1024, t.TempDir(), "")
 	return h.Routes(), tokens
 }
 
@@ -180,6 +181,10 @@ func (fakeBooks) SearchBooks(context.Context, string, string, int, int) ([]domai
 	return nil, 0, nil
 }
 
+func (fakeBooks) ListRecommendedBooks(context.Context, int, int) ([]domain.Book, int, error) {
+	return nil, 0, nil
+}
+
 func (fakeBooks) GetBook(context.Context, int64) (domain.Book, error) {
 	return domain.Book{}, nil
 }
@@ -212,6 +217,10 @@ func (fakeAdmin) UploadBook(context.Context, int64, domain.UploadBookInput, stri
 
 func (fakeAdmin) UpdateBook(_ context.Context, _ int64, _ domain.Role, bookID int64, input domain.BookMetadataInput) (domain.Book, error) {
 	return domain.Book{ID: bookID, Title: input.Title, Author: "作者", Description: input.Description}, nil
+}
+
+func (fakeAdmin) UploadCover(context.Context, int64, domain.Role, int64, string, io.Reader) (string, error) {
+	return "/api/books/1/cover", nil
 }
 
 func (fakeAdmin) DeleteBook(context.Context, int64, domain.Role, int64) error {

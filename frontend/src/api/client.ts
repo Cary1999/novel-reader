@@ -147,6 +147,13 @@ export const apiClient = {
     });
   },
 
+  recommendations(params: { page?: number; pageSize?: number } = {}) {
+    return request<PagedBooks>("/api/books/recommendations", {}, {
+      page: params.page,
+      pageSize: params.pageSize,
+    });
+  },
+
   book(bookId: string | number) {
     return request<BookDetail>(`/api/books/${bookId}`);
   },
@@ -214,6 +221,15 @@ export const apiClient = {
     return request<BookDetail>(`/api/books/${bookId}`, {
       method: "PATCH",
       body: JSON.stringify(bookJson(input)),
+    });
+  },
+
+  uploadBookCover(bookId: string | number, file: File) {
+    const formData = new FormData();
+    formData.set("file", file);
+    return request<{ coverUrl: string }>(`/api/books/${bookId}/cover`, {
+      method: "POST",
+      body: formData,
     });
   },
 

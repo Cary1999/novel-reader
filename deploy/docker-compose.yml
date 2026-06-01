@@ -44,6 +44,9 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-novel_reader_password}
       UPLOAD_DIR: /app/data/uploads
       MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-52428800}
+      COVER_DIR: /app/data/uploads/covers
+      MAX_COVER_BYTES: ${MAX_COVER_BYTES:-10485760}
+      DEFAULT_COVER_FILE: ${DEFAULT_COVER_FILE:-}
       JWT_SECRET: ${JWT_SECRET:-change-me-local-dev-only}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin_password_change_me}

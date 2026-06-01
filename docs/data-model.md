@@ -52,6 +52,8 @@
 - `description`：简介。
 - `chapter_count`：章节数。
 - `latest_chapter_title`：最新章节标题。
+- `recommend_score`：推荐度，整数，默认 `0`，越大越靠前。
+- `cover_path`：封面文件相对路径，可为空；由服务端生成，不来自用户输入。
 - `source_upload_id`：来源上传记录 ID，可为空。
 - `created_at`：创建时间。
 - `updated_at`：更新时间。
@@ -62,6 +64,7 @@
 - `author`
 - `owner_user_id`
 - `category_id`
+- `recommend_score`
 - `created_at`
 
 ### chapters
@@ -139,3 +142,16 @@ data/uploads/
 - 上传大小限制在配置中定义，MVP 默认限制为 50MB。
 - 删除或替换书籍时，源文件处理策略必须在执行计划中明确。
 - 当前后台删除整本小说只删除 `books` 和级联 `chapters`，保留上传源文件和 `uploads` 记录用于追溯。
+
+封面文件保存到：
+
+```text
+data/uploads/covers/
+```
+
+规则：
+
+- 文件名由服务端生成，避免使用原始文件名作为路径。
+- 允许 `jpg`/`jpeg`、`png`、`webp`。
+- 最大尺寸 10MB。
+- 如果书籍没有封面，封面读取接口必须返回服务端占位图（HTTP 200），而不是 404。

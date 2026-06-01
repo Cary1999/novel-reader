@@ -35,6 +35,9 @@ type Book struct {
 	Description        string    `json:"description"`
 	ChapterCount       int       `json:"chapterCount"`
 	LatestChapterTitle string    `json:"latestChapterTitle"`
+	RecommendScore     int       `json:"recommendScore"`
+	CoverURL           string    `json:"coverUrl"`
+	CoverPath          *string   `json:"-"`
 	CreatedAt          time.Time `json:"createdAt"`
 	UpdatedAt          time.Time `json:"-"`
 }
@@ -72,9 +75,10 @@ type UploadBookInput struct {
 }
 
 type BookMetadataInput struct {
-	Title       string `json:"title"`
-	CategoryID  int64  `json:"categoryId"`
-	Description string `json:"description"`
+	Title          string `json:"title"`
+	CategoryID     int64  `json:"categoryId"`
+	Description    string `json:"description"`
+	RecommendScore *int   `json:"recommendScore,omitempty"`
 }
 
 type ChapterInput struct {

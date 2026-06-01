@@ -35,7 +35,7 @@ export function ReaderPage() {
       apiClient.chapters(bookId),
     ]);
     setBook(bookResponse);
-    setChapters(chapterResponse.items);
+    setChapters(chapterResponse.items ?? []);
   }
 
   async function load() {

@@ -76,6 +76,9 @@ npm run dev
 - `DATABASE_DSN`：后端连接 DSN（Compose 内默认连 `mysql:3306`）
 - `UPLOAD_DIR`：容器内上传目录（默认 `/app/data/uploads`）
 - `MAX_UPLOAD_BYTES`：上传大小限制（默认 `52428800`，即 50MB）
+- `COVER_DIR`：封面存储目录（默认 `/app/data/uploads/covers`）
+- `MAX_COVER_BYTES`：封面大小限制（默认 `10485760`，即 10MB）
+- `DEFAULT_COVER_FILE`：默认封面文件路径（可选）。当书籍未上传封面时，`GET /api/books/{id}/cover` 会返回该文件内容。可写绝对路径，也可写相对路径（相对 `COVER_DIR`）。
 - `JWT_SECRET`：JWT 密钥（本地也建议改掉）
 - `ADMIN_USERNAME` / `ADMIN_PASSWORD`：管理员账号密码
 
@@ -130,4 +133,3 @@ docker compose -f deploy/docker-compose.yml --env-file .env up -d --build
 ## Harness 文档
 
 项目采用 Harness Engineering 工作流，产品/架构/契约/命令都在 `docs/` 下：`docs/README.md`。
-

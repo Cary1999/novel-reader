@@ -12,6 +12,7 @@ type BookForm = {
   title: string;
   categoryId: string;
   description: string;
+  recommendScore: string;
 };
 
 type ChapterForm = {
@@ -24,6 +25,7 @@ const emptyBookForm: BookForm = {
   title: "",
   categoryId: "",
   description: "",
+  recommendScore: "0",
 };
 
 const emptyChapterForm: ChapterForm = {
@@ -49,6 +51,9 @@ export function AdminBooksPage() {
   const [isSavingChapter, setIsSavingChapter] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [coverPreviewUrl, setCoverPreviewUrl] = useState<string>("");
+  const [pendingCoverFile, setPendingCoverFile] = useState<File | null>(null);
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
 
   const totalPages = Math.max(Math.ceil(total / PAGE_SIZE), 1);
   const pageTitle = isAdmin ? "小说管理" : "我的作品";
@@ -83,6 +88,8 @@ export function AdminBooksPage() {
       setError("");
       setMessage("");
       setIsCreating(false);
+      setCoverPreviewUrl("");
+      setPendingCoverFile(null);
       const [detail, chapterResponse] = await Promise.all([
         apiClient.book(book.id),
         apiClient.chapters(book.id),
@@ -93,6 +100,7 @@ export function AdminBooksPage() {
         title: nextBook.title,
         categoryId: String(nextBook.categoryId ?? ""),
         description: nextBook.description ?? "",
+        recommendScore: String(nextBook.recommendScore ?? 0),
       });
       setChapters(chapterResponse.items ?? []);
       setChapterForm(emptyChapterForm);
@@ -107,6 +115,11 @@ export function AdminBooksPage() {
     setChapters([]);
     setChapterForm(emptyChapterForm);
     setIsCreating(false);
+    setCoverPreviewUrl((prev) => {
+      if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+      return "";
+    });
+    setPendingCoverFile(null);
   }
 
   function startCreate() {
@@ -150,10 +163,32 @@ export function AdminBooksPage() {
           title: bookForm.title.trim(),
           categoryId: bookForm.categoryId,
           description: bookForm.description.trim(),
+          recommendScore: Number(bookForm.recommendScore || 0),
         });
-        setSelectedBook({ ...selectedBook, ...updated });
+        let nextSelected = { ...selectedBook, ...updated };
+        setSelectedBook(nextSelected);
         setBooks((items) => items.map((book) => book.id === updated.id ? { ...book, ...updated } : book));
-        setMessage("小说基础信息已保存");
+
+        // Cover upload is applied only after clicking "save".
+        if (pendingCoverFile) {
+          try {
+            setIsUploadingCover(true);
+            const result = await apiClient.uploadBookCover(selectedBook.id, pendingCoverFile);
+            nextSelected = { ...nextSelected, coverUrl: result.coverUrl };
+            setSelectedBook(nextSelected);
+            setBooks((items) => items.map((book) => book.id === selectedBook.id ? { ...book, coverUrl: result.coverUrl } : book));
+            setPendingCoverFile(null);
+            setCoverPreviewUrl((prev) => {
+              if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+              return "";
+            });
+            setMessage("基础信息已保存，封面已更新");
+          } finally {
+            setIsUploadingCover(false);
+          }
+        } else {
+          setMessage("小说基础信息已保存");
+        }
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "保存小说失败");
@@ -333,9 +368,59 @@ export function AdminBooksPage() {
                   </select>
                 </label>
                 <label>
+                  推荐度
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={bookForm.recommendScore}
+                    onChange={(event) => setBookForm({ ...bookForm, recommendScore: event.target.value })}
+                  />
+                </label>
+                <label>
                   简介
                   <textarea value={bookForm.description} rows={4} maxLength={1000} onChange={(event) => setBookForm({ ...bookForm, description: event.target.value })} />
                 </label>
+                {!isCreating && selectedBook ? (
+                  <label>
+                    书籍封面
+                    <input
+                      className="cover-file-input"
+                      id="book-cover-file"
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      onChange={async (event) => {
+                        const file = event.currentTarget.files?.[0];
+                        if (!file) return;
+                        if (file.size > 10 * 1024 * 1024) {
+                          setError("封面图片不能超过 10MB");
+                          event.currentTarget.value = "";
+                          return;
+                        }
+
+                        // Immediate optimistic preview.
+                        const objectUrl = URL.createObjectURL(file);
+                        setCoverPreviewUrl((prev) => {
+                          if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+                          return objectUrl;
+                        });
+                        setPendingCoverFile(file);
+                        setMessage("已选择新封面，点击保存后生效");
+                        event.currentTarget.value = "";
+                      }}
+                    />
+
+                    <div className={`cover-preview ${isUploadingCover ? "is-uploading" : ""}`}>
+                      <label className="cover-preview-hit" htmlFor="book-cover-file" aria-label="点击更换封面">
+                        <img src={coverPreviewUrl || selectedBook.coverUrl || ""} alt="" />
+                        {!coverPreviewUrl && !selectedBook.coverUrl ? (
+                          <span className="cover-preview-empty">点击选择封面</span>
+                        ) : null}
+                        {isUploadingCover ? <span className="cover-preview-badge">上传中...</span> : pendingCoverFile ? <span className="cover-preview-badge">待保存</span> : null}
+                      </label>
+                    </div>
+                  </label>
+                ) : null}
                 <button className="primary-button compact" type="submit" disabled={isSavingBook}>
                   <Save size={16} aria-hidden="true" />
                   {isSavingBook ? "保存中..." : isCreating ? "创建小说" : "保存基础信息"}

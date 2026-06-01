@@ -39,6 +39,8 @@ CREATE TABLE IF NOT EXISTS books (
   description TEXT NOT NULL,
   chapter_count INT NOT NULL DEFAULT 0,
   latest_chapter_title VARCHAR(255) NOT NULL DEFAULT '',
+  recommend_score INT NOT NULL DEFAULT 0,
+  cover_path VARCHAR(255) NULL,
   source_upload_id BIGINT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -47,6 +49,7 @@ CREATE TABLE IF NOT EXISTS books (
   INDEX idx_books_owner_user_id (owner_user_id),
   INDEX idx_books_category (category_id),
   INDEX idx_books_created_at (created_at),
+  INDEX idx_books_recommend_score (recommend_score),
   CONSTRAINT fk_books_owner_user FOREIGN KEY (owner_user_id) REFERENCES users(id),
   CONSTRAINT fk_books_category FOREIGN KEY (category_id) REFERENCES categories(id),
   CONSTRAINT fk_books_upload FOREIGN KEY (source_upload_id) REFERENCES uploads(id)

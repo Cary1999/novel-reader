@@ -2,10 +2,13 @@ package httphandler
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -24,6 +27,7 @@ type AuthUseCase interface {
 type BookUseCase interface {
 	ListCategories(ctx context.Context) ([]domain.Category, error)
 	SearchBooks(ctx context.Context, q, category string, page, pageSize int) ([]domain.Book, int, error)
+	ListRecommendedBooks(ctx context.Context, page, pageSize int) ([]domain.Book, int, error)
 	GetBook(ctx context.Context, id int64) (domain.Book, error)
 	ListChapters(ctx context.Context, bookID int64) ([]domain.Chapter, error)
 	GetChapter(ctx context.Context, bookID, chapterID int64) (domain.Chapter, error)
@@ -35,6 +39,7 @@ type AdminUseCase interface {
 	CreateBook(ctx context.Context, ownerID int64, input domain.UploadBookInput) (domain.Book, error)
 	UploadBook(ctx context.Context, ownerID int64, input domain.UploadBookInput, originalName string, reader io.Reader) (domain.UploadResult, error)
 	UpdateBook(ctx context.Context, actorID int64, role domain.Role, bookID int64, input domain.BookMetadataInput) (domain.Book, error)
+	UploadCover(ctx context.Context, actorID int64, role domain.Role, bookID int64, originalName string, reader io.Reader) (string, error)
 	DeleteBook(ctx context.Context, actorID int64, role domain.Role, bookID int64) error
 	AddChapter(ctx context.Context, actorID int64, role domain.Role, bookID int64, input domain.ChapterInput) (domain.Chapter, error)
 	UpdateChapter(ctx context.Context, actorID int64, role domain.Role, bookID, chapterID int64, input domain.ChapterInput) (domain.Chapter, error)
@@ -50,14 +55,24 @@ type Handler struct {
 	adminSvc       AdminUseCase
 	tokens         *auth.Manager
 	maxUploadBytes int64
+	coverDir       string
+	defaultCover   string
 }
 
 type contextKey string
 
 const claimsKey contextKey = "claims"
 
-func New(authSvc AuthUseCase, bookSvc BookUseCase, adminSvc AdminUseCase, tokens *auth.Manager, maxUploadBytes int64) *Handler {
-	return &Handler{authSvc: authSvc, bookSvc: bookSvc, adminSvc: adminSvc, tokens: tokens, maxUploadBytes: maxUploadBytes}
+func New(authSvc AuthUseCase, bookSvc BookUseCase, adminSvc AdminUseCase, tokens *auth.Manager, maxUploadBytes int64, coverDir string, defaultCover string) *Handler {
+	return &Handler{
+		authSvc:        authSvc,
+		bookSvc:        bookSvc,
+		adminSvc:       adminSvc,
+		tokens:         tokens,
+		maxUploadBytes: maxUploadBytes,
+		coverDir:       coverDir,
+		defaultCover:   strings.TrimSpace(defaultCover),
+	}
 }
 
 func (h *Handler) Routes() http.Handler {
@@ -72,9 +87,12 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("PATCH /api/auth/password", h.requireAuth(h.ChangePassword))
 	mux.HandleFunc("GET /api/categories", h.Categories)
 	mux.HandleFunc("GET /api/books/search", h.SearchBooks)
+	mux.HandleFunc("GET /api/books/recommendations", h.Recommendations)
 	mux.HandleFunc("GET /api/books/{bookId}", h.BookDetail)
 	mux.HandleFunc("GET /api/books/{bookId}/chapters", h.ChapterList)
 	mux.HandleFunc("GET /api/books/{bookId}/chapters/{chapterId}", h.requireAuth(h.ChapterDetail))
+	mux.HandleFunc("GET /api/books/{bookId}/cover", h.BookCover)
+	mux.HandleFunc("POST /api/books/{bookId}/cover", h.requireAuth(h.UploadBookCover))
 	mux.HandleFunc("GET /api/me/books", h.requireAuth(h.MyBooks))
 	mux.HandleFunc("POST /api/me/books", h.requireAuth(h.CreateMyBook))
 	mux.HandleFunc("POST /api/me/books/upload", h.requireAuth(h.UploadBook))
@@ -193,6 +211,24 @@ func (h *Handler) SearchBooks(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	for i := range items {
+		items[i].CoverURL = "/api/books/" + strconv.FormatInt(items[i].ID, 10) + "/cover"
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items, "total": total})
+}
+
+func (h *Handler) Recommendations(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	page := parseInt(query.Get("page"), 1)
+	pageSize := parseInt(query.Get("pageSize"), 20)
+	items, total, err := h.bookSvc.ListRecommendedBooks(r.Context(), page, pageSize)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	for i := range items {
+		items[i].CoverURL = "/api/books/" + strconv.FormatInt(items[i].ID, 10) + "/cover"
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": items, "total": total})
 }
 
@@ -206,6 +242,7 @@ func (h *Handler) BookDetail(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	book.CoverURL = "/api/books/" + strconv.FormatInt(book.ID, 10) + "/cover"
 	writeJSON(w, http.StatusOK, book)
 }
 
@@ -239,6 +276,103 @@ func (h *Handler) ChapterDetail(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, chapter)
 }
 
+func (h *Handler) UploadBookCover(w http.ResponseWriter, r *http.Request) {
+	// Covers are limited separately from txt uploads; keep a small overhead for multipart.
+	const maxCoverBytes = 10 * 1024 * 1024
+	r.Body = http.MaxBytesReader(w, r.Body, maxCoverBytes+1024*1024)
+	if err := r.ParseMultipartForm(maxCoverBytes + 1024*1024); err != nil {
+		writeError(w, domain.NewError(http.StatusBadRequest, "BAD_REQUEST", "invalid multipart upload"))
+		return
+	}
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		writeError(w, domain.NewError(http.StatusBadRequest, "BAD_REQUEST", "file is required"))
+		return
+	}
+	defer file.Close()
+
+	bookID, ok := pathInt(w, r, "bookId")
+	if !ok {
+		return
+	}
+	claims := mustClaims(r)
+	coverURL, err := h.adminSvc.UploadCover(r.Context(), claims.UserID, claims.Role, bookID, header.Filename, file)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"coverUrl": coverURL})
+}
+
+func (h *Handler) BookCover(w http.ResponseWriter, r *http.Request) {
+	bookID, ok := pathInt(w, r, "bookId")
+	if !ok {
+		return
+	}
+	book, err := h.bookSvc.GetBook(r.Context(), bookID)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
+	// If no cover is set, return a built-in placeholder image (HTTP 200).
+	if book.CoverPath == nil || strings.TrimSpace(*book.CoverPath) == "" {
+		h.writeDefaultCover(w)
+		return
+	}
+
+	fullPath := filepath.Join(h.coverDir, *book.CoverPath)
+	data, err := os.ReadFile(fullPath)
+	if err != nil {
+		// If the file is missing on disk, behave like "no cover" rather than breaking UI.
+		h.writeDefaultCover(w)
+		return
+	}
+
+	w.Header().Set("Content-Type", coverContentTypeByExt(*book.CoverPath))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
+}
+
+func coverContentTypeByExt(path string) string {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".png":
+		return "image/png"
+	case ".webp":
+		return "image/webp"
+	default:
+		return "application/octet-stream"
+	}
+}
+
+func (h *Handler) writeDefaultCover(w http.ResponseWriter) {
+	if h.defaultCover != "" {
+		path := h.defaultCover
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(h.coverDir, path)
+		}
+		data, err := os.ReadFile(path)
+		if err == nil {
+			w.Header().Set("Content-Type", coverContentTypeByExt(path))
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(data)
+			return
+		}
+	}
+	// Fallback: 1x1 transparent PNG to guarantee HTTP 200 and avoid broken images.
+	const placeholderBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO3Z9p0AAAAASUVORK5CYII="
+	data, err := base64.StdEncoding.DecodeString(placeholderBase64)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "image/png")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
+}
+
 func (h *Handler) AdminBooks(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	page := parseInt(query.Get("page"), 1)
@@ -247,6 +381,9 @@ func (h *Handler) AdminBooks(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, err)
 		return
+	}
+	for i := range items {
+		items[i].CoverURL = "/api/books/" + strconv.FormatInt(items[i].ID, 10) + "/cover"
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": items, "total": total})
 }
@@ -260,6 +397,9 @@ func (h *Handler) MyBooks(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, err)
 		return
+	}
+	for i := range items {
+		items[i].CoverURL = "/api/books/" + strconv.FormatInt(items[i].ID, 10) + "/cover"
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": items, "total": total})
 }

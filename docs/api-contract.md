@@ -180,6 +180,42 @@
       "description": "Short excerpt",
       "chapterCount": 12,
       "latestChapterTitle": "Chapter 12",
+      "recommendScore": 0,
+      "coverUrl": "/api/books/1/cover",
+      "createdAt": "2026-05-07T10:00:00+08:00"
+    }
+  ],
+  "total": 1
+}
+```
+
+### GET /api/books/recommendations
+
+查询参数：
+
+- `page`：页码，可选，默认 `1`。
+- `pageSize`：每页数量，可选，默认 `20`。
+
+说明：
+
+- 按 `recommendScore` 从大到小排序。
+- 同分时按 `createdAt desc`（或 `id desc`）保证顺序稳定。
+
+响应：
+
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "title": "Example Novel",
+      "author": "Example Author",
+      "category": "Fantasy",
+      "description": "Short excerpt",
+      "chapterCount": 12,
+      "latestChapterTitle": "Chapter 12",
+      "recommendScore": 98,
+      "coverUrl": "/api/books/1/cover",
       "createdAt": "2026-05-07T10:00:00+08:00"
     }
   ],
@@ -198,7 +234,9 @@
   "author": "Example Author",
   "category": "Fantasy",
   "description": "Full description",
-  "chapterCount": 12
+  "chapterCount": 12,
+  "recommendScore": 0,
+  "coverUrl": "/api/books/1/cover"
 }
 ```
 
@@ -235,6 +273,74 @@
   "content": "Chapter content..."
 }
 ```
+
+### GET /api/books/{bookId}/cover
+
+说明：
+
+- 返回书籍封面图片的二进制内容。
+- 如果该书没有上传封面，接口必须返回默认占位图（HTTP 200），避免前端出现 broken image。
+
+响应：
+
+- `Content-Type: image/jpeg` 或 `image/png` 或 `image/webp`
+- Body: 图片 bytes
+
+### POST /api/books/{bookId}/cover
+
+认证：
+
+- 需要登录。
+
+权限：
+
+- 管理员或书籍作者本人。
+
+内容类型：
+
+- `multipart/form-data`
+
+字段：
+
+- `file`：封面图片文件（JPG/PNG/WebP），最大 10MB。
+
+响应：
+
+```json
+{
+  "coverUrl": "/api/books/1/cover"
+}
+```
+
+### PATCH /api/books/{bookId}
+
+认证：
+
+- 需要登录。
+
+权限：
+
+- 管理员或书籍作者本人。
+
+请求：
+
+```json
+{
+  "title": "书名",
+  "categoryId": 1,
+  "description": "简介",
+  "recommendScore": 10
+}
+```
+
+说明：
+
+- `recommendScore` 仅允许管理员或书籍作者更新。
+- 作者不可修改。
+
+响应：
+
+- 返回书籍详情对象（同 `GET /api/books/{bookId}`）。
 
 ## 登录用户作品
 

@@ -6,8 +6,14 @@ export function BookCard({ book }: { book: BookSummary }) {
   return (
     <article className="book-card">
       <div className="book-cover" aria-hidden="true">
-        <div className="book-cover-spine" />
-        <BookOpen size={28} />
+        {book.coverUrl ? (
+          <img className="book-cover-img" src={book.coverUrl} alt="" loading="lazy" />
+        ) : (
+          <>
+            <div className="book-cover-spine" />
+            <BookOpen size={28} />
+          </>
+        )}
       </div>
       <div className="book-card-body">
         <div className="book-card-head">

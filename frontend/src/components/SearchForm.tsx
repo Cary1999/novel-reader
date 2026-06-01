@@ -1,5 +1,5 @@
 import { Search } from "lucide-react";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import type { Category } from "../api/types";
 
 interface SearchFormProps {
@@ -12,6 +12,14 @@ interface SearchFormProps {
 export function SearchForm({ initialQuery = "", initialCategory = "", categories, onSubmit }: SearchFormProps) {
   const [query, setQuery] = useState(initialQuery);
   const [category, setCategory] = useState(initialCategory);
+
+  useEffect(() => {
+    setQuery(initialQuery);
+  }, [initialQuery]);
+
+  useEffect(() => {
+    setCategory(initialCategory);
+  }, [initialCategory]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"novel-reader/backend/internal/domain"
@@ -19,10 +20,32 @@ type FileStore interface {
 type AdminService struct {
 	store repository.Store
 	files FileStore
+	covers CoverStore
 }
 
-func NewAdminService(store repository.Store, files FileStore) *AdminService {
-	return &AdminService{store: store, files: files}
+type CoverStore interface {
+	SaveCover(originalName string, reader io.Reader) (storage.SavedFile, error)
+}
+
+func NewAdminService(store repository.Store, files FileStore, covers CoverStore) *AdminService {
+	return &AdminService{store: store, files: files, covers: covers}
+}
+
+func (s *AdminService) UploadCover(ctx context.Context, actorID int64, role domain.Role, bookID int64, originalName string, reader io.Reader) (string, error) {
+	if err := s.authorizeBookWrite(ctx, actorID, role, bookID); err != nil {
+		return "", err
+	}
+	saved, err := s.covers.SaveCover(originalName, reader)
+	if err != nil {
+		return "", uploadCoverError(err)
+	}
+	if err := s.store.UpdateBookCoverPath(ctx, bookID, &saved.RelativePath); err != nil {
+		if repository.IsNotFound(err) {
+			return "", domain.NewError(http.StatusNotFound, "NOT_FOUND", "book not found")
+		}
+		return "", err
+	}
+	return "/api/books/" + strconv.FormatInt(bookID, 10) + "/cover", nil
 }
 
 func (s *AdminService) ListBooks(ctx context.Context, q, category string, page, pageSize int) ([]domain.Book, int, error) {
@@ -316,6 +339,20 @@ func uploadError(err error) error {
 		return domain.NewError(http.StatusRequestEntityTooLarge, "UPLOAD_TOO_LARGE", "txt file is too large")
 	case strings.Contains(message, "empty file"):
 		return domain.NewError(http.StatusBadRequest, "BAD_REQUEST", "txt file is empty")
+	default:
+		return domain.NewError(http.StatusBadRequest, "BAD_REQUEST", "invalid upload")
+	}
+}
+
+func uploadCoverError(err error) error {
+	message := err.Error()
+	switch {
+	case strings.Contains(message, "invalid file type"):
+		return domain.NewError(http.StatusBadRequest, "UPLOAD_INVALID_TYPE", "only jpg/png/webp files are allowed")
+	case strings.Contains(message, "file too large"):
+		return domain.NewError(http.StatusRequestEntityTooLarge, "UPLOAD_TOO_LARGE", "cover image is too large")
+	case strings.Contains(message, "empty file"):
+		return domain.NewError(http.StatusBadRequest, "BAD_REQUEST", "cover image is empty")
 	default:
 		return domain.NewError(http.StatusBadRequest, "BAD_REQUEST", "invalid upload")
 	}

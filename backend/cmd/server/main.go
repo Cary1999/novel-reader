@@ -58,10 +58,11 @@ func main() {
 
 	tokenManager := auth.NewManager([]byte(cfg.JWTSecret), cfg.TokenTTL)
 	uploadStore := storage.NewLocalStore(cfg.UploadDir, cfg.MaxUploadBytes)
+	coverStore := storage.NewLocalStore(cfg.CoverDir, cfg.MaxCoverBytes)
 	authSvc := service.NewAuthService(store, tokenManager)
 	bookSvc := service.NewBookService(store)
-	adminSvc := service.NewAdminService(store, uploadStore)
-	handler := httphandler.New(authSvc, bookSvc, adminSvc, tokenManager, cfg.MaxUploadBytes)
+	adminSvc := service.NewAdminService(store, uploadStore, coverStore)
+	handler := httphandler.New(authSvc, bookSvc, adminSvc, tokenManager, cfg.MaxUploadBytes, cfg.CoverDir, cfg.DefaultCoverFile)
 
 	httpSrv := khttp.NewServer(khttp.Address(cfg.HTTPAddr), khttp.Timeout(15*time.Second))
 	httpSrv.HandlePrefix("/", handler.Routes())

@@ -25,7 +25,7 @@ export function BookDetailPage() {
         apiClient.chapters(bookId),
       ]);
       setBook(bookResponse);
-      setChapters(chapterResponse.items);
+      setChapters(chapterResponse.items ?? []);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "书籍详情加载失败");
     } finally {
@@ -63,8 +63,14 @@ export function BookDetailPage() {
     <main className="page shell">
       <section className="detail-header">
         <div className="detail-cover" aria-hidden="true">
-          <div className="detail-cover-spine" />
-          <BookOpen size={50} />
+          {book.coverUrl ? (
+            <img className="book-cover-img" src={book.coverUrl} alt="" loading="lazy" />
+          ) : (
+            <>
+              <div className="detail-cover-spine" />
+              <BookOpen size={50} />
+            </>
+          )}
         </div>
         <div>
           <p className="eyebrow">{book.category || "未分类"}</p>

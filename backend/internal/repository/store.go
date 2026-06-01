@@ -24,8 +24,10 @@ type Store interface {
 	UpdateCategory(ctx context.Context, id int64, name string) (domain.Category, error)
 	DeleteCategory(ctx context.Context, id int64) error
 	SearchBooks(ctx context.Context, q, category string, page, pageSize int) ([]domain.Book, int, error)
+	ListRecommendedBooks(ctx context.Context, page, pageSize int) ([]domain.Book, int, error)
 	ListBooksByOwner(ctx context.Context, ownerID int64, q string, categoryID int64, page, pageSize int) ([]domain.Book, int, error)
 	FindBook(ctx context.Context, id int64) (domain.Book, error)
+	UpdateBookCoverPath(ctx context.Context, bookID int64, coverPath *string) error
 	ListChapters(ctx context.Context, bookID int64) ([]domain.Chapter, error)
 	FindChapter(ctx context.Context, bookID, chapterID int64) (domain.Chapter, error)
 	CreateUpload(ctx context.Context, upload domain.Upload) (int64, error)
@@ -68,6 +70,15 @@ func (s *MySQLStore) Migrate(ctx context.Context) error {
 		return err
 	}
 	if err := s.ensureForeignKey(ctx, "books", "fk_books_owner_user", `ALTER TABLE books ADD CONSTRAINT fk_books_owner_user FOREIGN KEY (owner_user_id) REFERENCES users(id)`); err != nil {
+		return err
+	}
+	if err := s.ensureColumn(ctx, "books", "recommend_score", `ALTER TABLE books ADD COLUMN recommend_score INT NOT NULL DEFAULT 0 AFTER latest_chapter_title`); err != nil {
+		return err
+	}
+	if err := s.ensureColumn(ctx, "books", "cover_path", `ALTER TABLE books ADD COLUMN cover_path VARCHAR(255) NULL AFTER recommend_score`); err != nil {
+		return err
+	}
+	if err := s.ensureIndex(ctx, "books", "idx_books_recommend_score", `ALTER TABLE books ADD INDEX idx_books_recommend_score (recommend_score)`); err != nil {
 		return err
 	}
 	return nil
@@ -288,6 +299,47 @@ func (s *MySQLStore) SearchBooks(ctx context.Context, q, category string, page, 
 	return books, total, err
 }
 
+func (s *MySQLStore) ListRecommendedBooks(ctx context.Context, page, pageSize int) ([]domain.Book, int, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 50 {
+		pageSize = 20
+	}
+
+	var total int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM books`).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	rows, err := s.db.QueryContext(ctx, `
+		`+booksSelectSQL()+`WHERE 1=1
+		ORDER BY b.recommend_score DESC, b.created_at DESC, b.id DESC
+		LIMIT ? OFFSET ?
+	`, pageSize, (page-1)*pageSize)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	books, err := scanBooks(rows)
+	return books, total, err
+}
+
+func (s *MySQLStore) UpdateBookCoverPath(ctx context.Context, bookID int64, coverPath *string) error {
+	result, err := s.db.ExecContext(ctx, `UPDATE books SET cover_path = ? WHERE id = ?`, coverPath, bookID)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
 func (s *MySQLStore) ListBooksByOwner(ctx context.Context, ownerID int64, q string, categoryID int64, page, pageSize int) ([]domain.Book, int, error) {
 	args := []any{ownerID}
 	where := "WHERE b.owner_user_id = ?"
@@ -326,7 +378,8 @@ func (s *MySQLStore) FindBook(ctx context.Context, id int64) (domain.Book, error
 	var book domain.Book
 	var categoryID sql.NullInt64
 	var ownerID sql.NullInt64
-	if err := row.Scan(&book.ID, &book.Title, &book.Author, &ownerID, &categoryID, &book.Category, &book.Description, &book.ChapterCount, &book.LatestChapterTitle, &book.CreatedAt, &book.UpdatedAt); err != nil {
+	var coverPath sql.NullString
+	if err := row.Scan(&book.ID, &book.Title, &book.Author, &ownerID, &categoryID, &book.Category, &book.Description, &book.ChapterCount, &book.LatestChapterTitle, &book.RecommendScore, &coverPath, &book.CreatedAt, &book.UpdatedAt); err != nil {
 		return domain.Book{}, err
 	}
 	if ownerID.Valid {
@@ -334,6 +387,9 @@ func (s *MySQLStore) FindBook(ctx context.Context, id int64) (domain.Book, error
 	}
 	if categoryID.Valid {
 		book.CategoryID = &categoryID.Int64
+	}
+	if coverPath.Valid {
+		book.CoverPath = &coverPath.String
 	}
 	return book, nil
 }
@@ -449,12 +505,23 @@ func (s *MySQLStore) UpdateBookMetadata(ctx context.Context, bookID int64, input
 	if err := ensureBookExists(ctx, tx, bookID); err != nil {
 		return domain.Book{}, err
 	}
-	if _, err := tx.ExecContext(ctx, `
-		UPDATE books
-		SET title = ?, category_id = ?, description = ?
-		WHERE id = ?
-	`, input.Title, categoryID, input.Description, bookID); err != nil {
-		return domain.Book{}, err
+	// recommend_score is optional in input to keep backward compatibility with older clients.
+	if input.RecommendScore != nil {
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE books
+			SET title = ?, category_id = ?, description = ?, recommend_score = ?
+			WHERE id = ?
+		`, input.Title, categoryID, input.Description, *input.RecommendScore, bookID); err != nil {
+			return domain.Book{}, err
+		}
+	} else {
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE books
+			SET title = ?, category_id = ?, description = ?
+			WHERE id = ?
+		`, input.Title, categoryID, input.Description, bookID); err != nil {
+			return domain.Book{}, err
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return domain.Book{}, err
@@ -624,7 +691,8 @@ func scanBooks(rows *sql.Rows) ([]domain.Book, error) {
 		var book domain.Book
 		var ownerID sql.NullInt64
 		var categoryID sql.NullInt64
-		if err := rows.Scan(&book.ID, &book.Title, &book.Author, &ownerID, &categoryID, &book.Category, &book.Description, &book.ChapterCount, &book.LatestChapterTitle, &book.CreatedAt, &book.UpdatedAt); err != nil {
+		var coverPath sql.NullString
+		if err := rows.Scan(&book.ID, &book.Title, &book.Author, &ownerID, &categoryID, &book.Category, &book.Description, &book.ChapterCount, &book.LatestChapterTitle, &book.RecommendScore, &coverPath, &book.CreatedAt, &book.UpdatedAt); err != nil {
 			return nil, err
 		}
 		if ownerID.Valid {
@@ -632,6 +700,9 @@ func scanBooks(rows *sql.Rows) ([]domain.Book, error) {
 		}
 		if categoryID.Valid {
 			book.CategoryID = &categoryID.Int64
+		}
+		if coverPath.Valid {
+			book.CoverPath = &coverPath.String
 		}
 		books = append(books, book)
 	}
@@ -645,7 +716,7 @@ func authorExprSQL() string {
 func booksSelectSQL() string {
 	return `
 		SELECT b.id, b.title, ` + authorExprSQL() + `, b.owner_user_id, b.category_id, COALESCE(c.name, ''), b.description,
-		       b.chapter_count, b.latest_chapter_title, b.created_at, b.updated_at
+		       b.chapter_count, b.latest_chapter_title, b.recommend_score, b.cover_path, b.created_at, b.updated_at
 		FROM books b
 		LEFT JOIN users u ON u.id = b.owner_user_id
 		LEFT JOIN categories c ON c.id = b.category_id

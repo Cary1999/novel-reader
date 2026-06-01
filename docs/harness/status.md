@@ -20,6 +20,8 @@ Phase 5 已完成并通过验证：用户创作、账号资料、分类治理和
 
 Phase 6 进行中：现代中文阅读站风格 UI 改版已完成 Harness 确认，并已完成首轮前端实现与构建验证。
 
+Phase 7 待开始：推荐榜单（推荐度字段）、书籍封面上传与占位图、首页展示数量上限（最多 8 本）已进入 Harness 草案阶段。
+
 当前 `make test`、前端 `npm run build`、`make docker-build` 和 `BASE_URL=http://localhost:8001 make smoke` 已通过。
 
 ## 已具备内容

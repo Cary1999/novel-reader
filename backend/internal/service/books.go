@@ -39,6 +39,19 @@ func (s *BookService) SearchBooks(ctx context.Context, q, category string, page,
 	return s.store.SearchBooks(ctx, q, category, page, pageSize)
 }
 
+func (s *BookService) ListRecommendedBooks(ctx context.Context, page, pageSize int) ([]domain.Book, int, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	if pageSize > 50 {
+		pageSize = 50
+	}
+	return s.store.ListRecommendedBooks(ctx, page, pageSize)
+}
+
 func (s *BookService) GetBook(ctx context.Context, id int64) (domain.Book, error) {
 	book, err := s.store.FindBook(ctx, id)
 	if err != nil {

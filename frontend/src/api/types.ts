@@ -37,6 +37,8 @@ export interface BookSummary {
   description: string;
   chapterCount: number;
   latestChapterTitle?: string;
+  recommendScore?: number;
+  coverUrl?: string;
   createdAt?: string;
 }
 
@@ -48,6 +50,8 @@ export interface BookDetail {
   category: string;
   description: string;
   chapterCount: number;
+  recommendScore?: number;
+  coverUrl?: string;
 }
 
 export interface ChapterSummary {
@@ -93,6 +97,7 @@ export interface BookMetadataInput {
   title: string;
   categoryId: number | string;
   description?: string;
+  recommendScore?: number;
 }
 
 export interface CreateBookInput {

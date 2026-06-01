@@ -19,7 +19,10 @@ type Config struct {
 	AdminPassword          string
 	GeneratedAdminPassword bool
 	UploadDir              string
+	CoverDir               string
 	MaxUploadBytes         int64
+	MaxCoverBytes          int64
+	DefaultCoverFile       string
 	DBMaxOpenConns         int
 	DBMaxIdleConns         int
 }
@@ -29,7 +32,12 @@ func Load() (Config, error) {
 		HTTPAddr:       env("HTTP_ADDR", ":8000"),
 		AdminUsername:  env("ADMIN_USERNAME", "admin"),
 		UploadDir:      env("UPLOAD_DIR", "data/uploads"),
+		CoverDir:       env("COVER_DIR", "data/uploads/covers"),
 		MaxUploadBytes: envInt64("MAX_UPLOAD_BYTES", 50*1024*1024),
+		MaxCoverBytes:  envInt64("MAX_COVER_BYTES", 10*1024*1024),
+		// If set, used as the placeholder returned by GET /api/books/{id}/cover when the book has no cover.
+		// Can be an absolute path, or a path relative to COVER_DIR.
+		DefaultCoverFile: env("DEFAULT_COVER_FILE", ""),
 		DBMaxOpenConns: envInt("DB_MAX_OPEN_CONNS", 10),
 		DBMaxIdleConns: envInt("DB_MAX_IDLE_CONNS", 5),
 	}

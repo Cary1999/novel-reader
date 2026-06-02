@@ -7,6 +7,7 @@
 - `product-spec.md`：产品目标、MVP 范围、用户角色和验收标准。
 - `ui-spec.md`：页面清单、交互状态和视觉约束。
 - `architecture.md`：系统形态、技术栈、边界、存储和部署方式。
+- `backend-ddd.md`：后端 DDD 分层、目录约定、factory/policy 模式和领域边界说明。
 - `api-contract.md`：前后端集成的第一版 API 契约。
 - `data-model.md`：MySQL 数据模型和本地文件存储规则。
 - `security.md`：认证、权限、上传和敏感信息约束。

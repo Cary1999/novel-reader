@@ -2,7 +2,7 @@
 
 ## 状态
 
-进行中。
+已完成本轮后端内部结构重构与文档补齐。
 
 ## 任务类型
 
@@ -67,17 +67,20 @@
 - `authoring` 不作为独立领域。
 - 跨领域调用默认由 application 层同步编排。
 - 暂不引入 bus；若未来需要异步副作用，再引入事件机制。
+- domain entity 与 MySQL model 必须分离，并通过 mapper 转换。
+- application 负责 command/query、分页和用例输入规则，不把这些规则下放到 domain。
+- MySQL SQL 仓储按领域放在 `infrastructure/data/mysql/repo/`，数据库模型放在 `infrastructure/data/mysql/model/`。
 
 ## 实施步骤
 
-1. 更新架构文档、ADR 和当前执行计划。
-2. 创建新的领域模型、仓储契约和共享错误定义。
-3. 把 JWT、配置、存储和 TXT 解析下沉到基础设施层。
-4. 把 MySQL 实现按领域拆成多个仓储文件。
-5. 把原有大 service 拆为按领域和用例组织的 application 服务。
-6. 把 HTTP handler 调整为只依赖 application 接口。
-7. 更新 `main.go` 的装配路径。
-8. 运行后端测试、前端构建、项目测试和必要 smoke 验证。
+1. 已更新架构文档、ADR 和当前执行计划。
+2. 已按 `entity/repository/service` 拆分 `identity`、`book`、`category`、`upload` 领域。
+3. 已把 `identity`、`book`、`category` 的 application 重构为 `application.go + command/query handlers`。
+4. 已把 MySQL model/repo 迁移到 `infrastructure/data/mysql/`。
+5. 已把 MySQL migration/seed 与上传仓储职责拆开。
+6. 已调整 HTTP、JWT、TXT parser 和应用服务 import。
+7. 已补充后端 DDD 说明文档，并更新 README、架构文档与 ADR。
+8. 已运行后端测试和项目测试。
 
 ## 验收标准
 
@@ -91,8 +94,8 @@
 
 ## 验证命令
 
-- `cd backend && go test ./...`
-- `make test`
+- `cd backend && env GOCACHE=/private/tmp/novel-reader-go-cache go test ./...`：通过。
+- `make test`：通过。
 - `cd frontend && npm run build`
 - `make docker-build`
 - `make smoke`

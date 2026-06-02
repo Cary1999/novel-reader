@@ -22,7 +22,7 @@ Phase 6 进行中：现代中文阅读站风格 UI 改版已完成 Harness 确�
 
 Phase 7 待开始：推荐榜单（推荐度字段）、书籍封面上传与占位图、首页展示数量上限（最多 8 本）已进入 Harness 草案阶段。
 
-Phase 8 进行中：后端模块化 DDD 分层重构已完成领域方案确认，进入文档与代码重构阶段。
+Phase 8 已完成本轮后端内部结构重构：领域实体、领域仓储契约、应用 command/query、MySQL 数据模型和 MySQL 仓储实现已分离。
 
 当前 `make test`、前端 `npm run build`、`make docker-build` 和 `BASE_URL=http://localhost:8001 make smoke` 已通过。
 
@@ -109,12 +109,14 @@ Phase 8 进行中：后端模块化 DDD 分层重构已完成领域方案确认�
 - Phase 5 真实接口 smoke：通过。
 - Phase 6 前端 `npm run build`：通过。
 - Phase 6 浏览器级首页视觉验收：已通过桌面端和移动端首轮检查，未发现前端控制台报错。
+- Phase 8 后端 `go test ./...`：通过。
+- Phase 8 `make test`：通过。
 
 ## 残余风险
 
 - Phase 6 目前只完成了首页在桌面端和移动端的浏览器级首轮验收，其它关键页面仍建议继续补充浏览器级视觉回归检查。
 - 当前尚未重新执行 `make smoke` 或完整容器链路验证，因为本轮改动集中在前端视觉层且未修改 API 契约。
-- Phase 8 将大规模调整后端内部包结构，需在实现完成后重新执行后端测试、项目测试、Docker 构建和 smoke 验证。
+- Phase 8 已完成后端包结构重构并通过后端测试和项目测试；仍建议交付前补充 Docker 构建与 smoke 验证。
 
 ## 当前运行提醒
 

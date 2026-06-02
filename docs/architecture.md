@@ -108,6 +108,13 @@
 - 编排业务用例。
 - 协调跨领域流程。
 - 处理权限流程、输入归一化和事务边界决策。
+- 定义贴近用例的 command/query 输入输出模型。
+
+当前目录约定：
+
+- `application/<domain>/application.go` 负责聚合装配 `Commands` / `Queries`
+- `application/<domain>/command/*.go` 一个文件一个 command handler
+- `application/<domain>/query/*.go` 一个文件一个 query handler
 
 当前主要用例：
 
@@ -124,12 +131,13 @@
 
 - 不持有具体 MySQL 或文件系统实现。
 - 通过领域仓储接口和基础设施适配器工作。
+- 分页、页大小、HTTP 查询条件归一化等用例输入规则留在 application，不下放到 domain。
 
 ### Domain 层
 
 职责：
 
-- 定义领域实体、值对象和不变量。
+- 定义领域实体、值对象、领域服务和不变量。
 - 定义仓储契约。
 - 提供全局可复用的领域错误。
 
@@ -139,6 +147,16 @@
 - `book`：章节必须从属于书；章节变更后要保持 `chapter_count` 和 `latest_chapter_title` 一致。
 - `category`：分类名唯一，已被书籍使用的分类不可删除。
 - `upload`：上传路径由服务端生成，状态只能按允许的生命周期流转。
+
+约束：
+
+- domain 只保存领域内需要表达和判断的模型，不保存数据库表结构模型。
+- 仓储契约按领域拆分，放在 `domain/<domain>/repository/`。
+- 领域实体放在 `domain/<domain>/entity/`，领域规则和策略放在 `domain/<domain>/service/`。
+- 当前 `domain/<domain>/service/` 以领域为单位聚合成单个 service 文件，例如：
+  - `domain/book/service/book.go`
+  - `domain/identity/service/identity.go`
+  - `domain/category/service/category.go`
 
 ### Infrastructure 层
 
@@ -154,6 +172,9 @@
 
 - 不承载业务用例编排。
 - 不决定产品权限规则。
+- MySQL 数据模型放在 `infrastructure/data/mysql/model/`，不得与 domain entity 混用。
+- MySQL 仓储实现放在 `infrastructure/data/mysql/repo/`，通过 `FromEntity` / `ToEntity` 完成数据库模型和领域实体转换。
+- `infrastructure/persistence/mysql/` 仅保留 MySQL schema、migration、seed 和 Store 装配入口。
 
 ## 领域协作规则
 
@@ -189,36 +210,50 @@ novel-reader/
         http/
       application/
         identity/
+          application.go
+          command/
+          query/
         book/
+          application.go
+          command/
+          query/
         category/
+          application.go
+          command/
+          query/
         upload/
+          query/
       domain/
         shared/
         identity/
+          entity/
+          repository/
+          service/
         book/
+          entity/
+          repository/
+          service/
         category/
+          entity/
+          repository/
+          service/
         upload/
+          entity/
+          repository/
       infrastructure/
+        data/
+          mysql/
+            model/
+            repo/
         auth/
-          jwt/
         config/
         parser/
-          txt/
+        storage/
         persistence/
           mysql/
-        storage/
-          local/
-    Dockerfile
-  frontend/
-    src/
-    Dockerfile
-  deploy/
-    docker-compose.yml
-  data/
-    uploads/
-  scripts/
-  Makefile
 ```
+
+补充说明见 [backend-ddd.md](/Users/lhl/Documents/project/src/ai_test/novel-reader/docs/backend-ddd.md)。
 
 ## 前端边界
 

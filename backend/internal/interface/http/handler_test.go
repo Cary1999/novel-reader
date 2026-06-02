@@ -14,11 +14,11 @@ import (
 	categoryapp "novel-reader/backend/internal/application/category"
 	identityapp "novel-reader/backend/internal/application/identity"
 	uploadapp "novel-reader/backend/internal/application/upload"
-	"novel-reader/backend/internal/domain/book"
-	"novel-reader/backend/internal/domain/category"
-	"novel-reader/backend/internal/domain/identity"
+	bookentity "novel-reader/backend/internal/domain/book/entity"
+	categoryentity "novel-reader/backend/internal/domain/category/entity"
+	identityentity "novel-reader/backend/internal/domain/identity/entity"
 	"novel-reader/backend/internal/domain/shared"
-	"novel-reader/backend/internal/domain/upload"
+	uploadentity "novel-reader/backend/internal/domain/upload/entity"
 	"novel-reader/backend/internal/infrastructure/auth/jwt"
 )
 
@@ -37,7 +37,7 @@ func TestChapterDetailRequiresLogin(t *testing.T) {
 
 func TestChapterDetailAllowsAuthenticatedUser(t *testing.T) {
 	handler, tokens := testHandler(t)
-	token, err := tokens.Issue(identity.User{ID: 7, Username: "reader", Role: shared.RoleUser})
+	token, err := tokens.Issue(identityentity.User{ID: 7, Username: "reader", Role: shared.RoleUser})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func TestChapterDetailAllowsAuthenticatedUser(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
 	}
-	var chapterItem book.Chapter
+	var chapterItem bookentity.Chapter
 	if err := json.Unmarshal(rec.Body.Bytes(), &chapterItem); err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func TestChapterDetailAllowsAuthenticatedUser(t *testing.T) {
 
 func TestAdminUploadRejectsNonAdminToken(t *testing.T) {
 	handler, tokens := testHandler(t)
-	token, err := tokens.Issue(identity.User{ID: 7, Username: "reader", Role: shared.RoleUser})
+	token, err := tokens.Issue(identityentity.User{ID: 7, Username: "reader", Role: shared.RoleUser})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestAdminUploadRejectsNonAdminToken(t *testing.T) {
 
 func TestAdminBookManagementRejectsNonAdminToken(t *testing.T) {
 	handler, tokens := testHandler(t)
-	token, err := tokens.Issue(identity.User{ID: 7, Username: "reader", Role: shared.RoleUser})
+	token, err := tokens.Issue(identityentity.User{ID: 7, Username: "reader", Role: shared.RoleUser})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,7 @@ func TestAdminBookManagementRejectsNonAdminToken(t *testing.T) {
 
 func TestAdminAddChapterAllowsAdmin(t *testing.T) {
 	handler, tokens := testHandler(t)
-	token, err := tokens.Issue(identity.User{ID: 1, Username: "admin", Role: shared.RoleAdmin})
+	token, err := tokens.Issue(identityentity.User{ID: 1, Username: "admin", Role: shared.RoleAdmin})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +110,7 @@ func TestAdminAddChapterAllowsAdmin(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
 	}
-	var chapterItem book.Chapter
+	var chapterItem bookentity.Chapter
 	if err := json.Unmarshal(rec.Body.Bytes(), &chapterItem); err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +121,7 @@ func TestAdminAddChapterAllowsAdmin(t *testing.T) {
 
 func TestAdminUploadParsesOnlyForAdmin(t *testing.T) {
 	handler, tokens := testHandler(t)
-	token, err := tokens.Issue(identity.User{ID: 1, Username: "admin", Role: shared.RoleAdmin})
+	token, err := tokens.Issue(identityentity.User{ID: 1, Username: "admin", Role: shared.RoleAdmin})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,12 +140,14 @@ func TestAdminUploadParsesOnlyForAdmin(t *testing.T) {
 func testHandler(t *testing.T) (http.Handler, *jwt.Manager) {
 	t.Helper()
 	tokens := jwt.NewManager([]byte("test-secret"), time.Hour)
-	identitySvc := identityapp.NewService(fakeIdentityRepo{}, tokens)
-	bookQueries := bookapp.NewQueryService(fakeBookRepo{})
-	bookManagement := bookapp.NewManagementService(fakeBookRepo{}, fakeCategoryRepo{})
-	categorySvc := categoryapp.NewService(fakeCategoryRepo{})
+	identityQueries := identityapp.NewQueries(fakeIdentityRepo{})
+	identityCommands := identityapp.NewCommands(fakeIdentityRepo{}, tokens)
+	bookQueries := bookapp.NewQueries(fakeBookRepo{})
+	bookCommands := bookapp.NewCommands(fakeBookRepo{}, fakeCategoryRepo{})
+	categoryQueries := categoryapp.NewQueries(fakeCategoryRepo{})
+	categoryCommands := categoryapp.NewCommands(fakeCategoryRepo{})
 	uploadSvc := uploadapp.NewService(fakeBookRepo{}, fakeCategoryRepo{}, fakeUploadRepo{}, fakeFileStore{}, fakeFileStore{}, fakeParser{})
-	h := New(identitySvc, bookQueries, bookManagement, categorySvc, uploadSvc, tokens, 1024, t.TempDir(), "")
+	h := New(identityQueries, identityCommands, bookQueries, bookCommands, categoryQueries, categoryCommands, uploadSvc, tokens, 1024, t.TempDir(), "")
 	return h.Routes(), tokens
 }
 
@@ -164,20 +166,20 @@ func assertErrorCode(t *testing.T, body, want string) {
 
 type fakeIdentityRepo struct{}
 
-func (fakeIdentityRepo) CreateUser(context.Context, string, string, shared.Role) (identity.User, error) {
-	return identity.User{}, nil
+func (fakeIdentityRepo) CreateUser(context.Context, string, string, shared.Role) (identityentity.User, error) {
+	return identityentity.User{}, nil
 }
 
-func (fakeIdentityRepo) FindUserByUsername(context.Context, string) (identity.User, error) {
-	return identity.User{}, shared.ErrNotFound
+func (fakeIdentityRepo) FindUserByUsername(context.Context, string) (identityentity.User, error) {
+	return identityentity.User{}, shared.ErrNotFound
 }
 
-func (fakeIdentityRepo) FindUserByID(_ context.Context, id int64) (identity.User, error) {
-	return identity.User{ID: id, Username: "reader", Nickname: "reader", Role: shared.RoleUser}, nil
+func (fakeIdentityRepo) FindUserByID(_ context.Context, id int64) (identityentity.User, error) {
+	return identityentity.User{ID: id, Username: "reader", Nickname: "reader", Role: shared.RoleUser}, nil
 }
 
-func (fakeIdentityRepo) UpdateUserNickname(_ context.Context, id int64, nickname string) (identity.User, error) {
-	return identity.User{ID: id, Username: "reader", Nickname: nickname, Role: shared.RoleUser}, nil
+func (fakeIdentityRepo) UpdateUserNickname(_ context.Context, id int64, nickname string) (identityentity.User, error) {
+	return identityentity.User{ID: id, Username: "reader", Nickname: nickname, Role: shared.RoleUser}, nil
 }
 
 func (fakeIdentityRepo) UpdateUserPassword(context.Context, int64, string) error {
@@ -186,57 +188,57 @@ func (fakeIdentityRepo) UpdateUserPassword(context.Context, int64, string) error
 
 type fakeBookRepo struct{}
 
-func (fakeBookRepo) SearchBooks(context.Context, string, string, int, int) ([]book.Book, int, error) {
+func (fakeBookRepo) SearchBooks(context.Context, string, string, int, int) ([]bookentity.Book, int, error) {
 	return nil, 0, nil
 }
 
-func (fakeBookRepo) ListRecommendedBooks(context.Context, int, int) ([]book.Book, int, error) {
+func (fakeBookRepo) ListRecommendedBooks(context.Context, int, int) ([]bookentity.Book, int, error) {
 	return nil, 0, nil
 }
 
-func (fakeBookRepo) ListBooksByOwner(context.Context, int64, string, int64, int, int) ([]book.Book, int, error) {
+func (fakeBookRepo) ListBooksByOwner(context.Context, int64, string, int64, int, int) ([]bookentity.Book, int, error) {
 	return nil, 0, nil
 }
 
-func (fakeBookRepo) FindBook(_ context.Context, id int64) (book.Book, error) {
+func (fakeBookRepo) FindBook(_ context.Context, id int64) (bookentity.Book, error) {
 	owner := int64(1)
-	return book.Book{ID: id, OwnerUserID: &owner}, nil
+	return bookentity.Book{ID: id, OwnerUserID: &owner}, nil
 }
 
 func (fakeBookRepo) UpdateBookCoverPath(context.Context, int64, *string) error {
 	return nil
 }
 
-func (fakeBookRepo) ListChapters(context.Context, int64) ([]book.Chapter, error) {
+func (fakeBookRepo) ListChapters(context.Context, int64) ([]bookentity.Chapter, error) {
 	return nil, nil
 }
 
-func (fakeBookRepo) FindChapter(_ context.Context, bookID, chapterID int64) (book.Chapter, error) {
-	return book.Chapter{ID: chapterID, BookID: bookID, Index: 1, Title: "Chapter 1", Content: "content"}, nil
+func (fakeBookRepo) FindChapter(_ context.Context, bookID, chapterID int64) (bookentity.Chapter, error) {
+	return bookentity.Chapter{ID: chapterID, BookID: bookID, Index: 1, Title: "Chapter 1", Content: "content"}, nil
 }
 
-func (fakeBookRepo) CreateBookWithChapters(context.Context, book.CreateInput, *int64, int64, []book.ChapterDraft) (int64, error) {
+func (fakeBookRepo) CreateBookWithChapters(context.Context, bookentity.Book, *int64, int64, []bookentity.ChapterDraft) (int64, error) {
 	return 1, nil
 }
 
-func (fakeBookRepo) CreateBook(_ context.Context, input book.CreateInput, _ *int64) (book.Book, error) {
-	return book.Book{ID: 10, Title: input.Title, Author: "作者", OwnerUserID: &input.OwnerUserID, Description: input.Description}, nil
+func (fakeBookRepo) CreateBook(_ context.Context, input bookentity.Book, _ *int64) (bookentity.Book, error) {
+	return bookentity.Book{ID: 10, Title: input.Title, Author: "作者", OwnerUserID: input.OwnerUserID, Description: input.Description}, nil
 }
 
-func (fakeBookRepo) UpdateBookMetadata(_ context.Context, bookID int64, input book.MetadataInput, _ *int64) (book.Book, error) {
-	return book.Book{ID: bookID, Title: input.Title, Author: "作者", Description: input.Description}, nil
+func (fakeBookRepo) UpdateBookMetadata(_ context.Context, bookID int64, input bookentity.Book, _ *int64) (bookentity.Book, error) {
+	return bookentity.Book{ID: bookID, Title: input.Title, Author: "作者", Description: input.Description}, nil
 }
 
 func (fakeBookRepo) DeleteBook(context.Context, int64) error {
 	return nil
 }
 
-func (fakeBookRepo) AddChapter(_ context.Context, bookID int64, input book.ChapterInput) (book.Chapter, error) {
-	return book.Chapter{ID: 11, BookID: bookID, Index: 3, Title: input.Title, Content: input.Content}, nil
+func (fakeBookRepo) AddChapter(_ context.Context, bookID int64, input bookentity.Chapter) (bookentity.Chapter, error) {
+	return bookentity.Chapter{ID: 11, BookID: bookID, Index: 3, Title: input.Title, Content: input.Content}, nil
 }
 
-func (fakeBookRepo) UpdateChapter(_ context.Context, bookID, chapterID int64, input book.ChapterInput) (book.Chapter, error) {
-	return book.Chapter{ID: chapterID, BookID: bookID, Index: 1, Title: input.Title, Content: input.Content}, nil
+func (fakeBookRepo) UpdateChapter(_ context.Context, bookID, chapterID int64, input bookentity.Chapter) (bookentity.Chapter, error) {
+	return bookentity.Chapter{ID: chapterID, BookID: bookID, Index: 1, Title: input.Title, Content: input.Content}, nil
 }
 
 func (fakeBookRepo) DeleteChapter(context.Context, int64, int64) error {
@@ -245,20 +247,20 @@ func (fakeBookRepo) DeleteChapter(context.Context, int64, int64) error {
 
 type fakeCategoryRepo struct{}
 
-func (fakeCategoryRepo) ListCategories(context.Context) ([]category.Category, error) {
+func (fakeCategoryRepo) ListCategories(context.Context) ([]categoryentity.Category, error) {
 	return nil, nil
 }
 
-func (fakeCategoryRepo) FindCategoryByID(context.Context, int64) (category.Category, error) {
-	return category.Category{ID: 1, Name: "分类"}, nil
+func (fakeCategoryRepo) FindCategoryByID(context.Context, int64) (categoryentity.Category, error) {
+	return categoryentity.Category{ID: 1, Name: "分类"}, nil
 }
 
-func (fakeCategoryRepo) CreateCategory(_ context.Context, name string) (category.Category, error) {
-	return category.Category{ID: 1, Name: name}, nil
+func (fakeCategoryRepo) CreateCategory(_ context.Context, name string) (categoryentity.Category, error) {
+	return categoryentity.Category{ID: 1, Name: name}, nil
 }
 
-func (fakeCategoryRepo) UpdateCategory(_ context.Context, id int64, name string) (category.Category, error) {
-	return category.Category{ID: id, Name: name}, nil
+func (fakeCategoryRepo) UpdateCategory(_ context.Context, id int64, name string) (categoryentity.Category, error) {
+	return categoryentity.Category{ID: id, Name: name}, nil
 }
 
 func (fakeCategoryRepo) DeleteCategory(context.Context, int64) error {
@@ -267,7 +269,7 @@ func (fakeCategoryRepo) DeleteCategory(context.Context, int64) error {
 
 type fakeUploadRepo struct{}
 
-func (fakeUploadRepo) CreateUpload(context.Context, upload.Upload) (int64, error) {
+func (fakeUploadRepo) CreateUpload(context.Context, uploadentity.Upload) (int64, error) {
 	return 1, nil
 }
 
@@ -287,6 +289,6 @@ func (fakeFileStore) SaveCover(string, io.Reader) (uploadapp.SavedFile, error) {
 
 type fakeParser struct{}
 
-func (fakeParser) ParseChapters(string) ([]book.ChapterDraft, error) {
-	return []book.ChapterDraft{{Index: 1, Title: "第一章", Content: "内容"}}, nil
+func (fakeParser) ParseChapters(string) ([]bookentity.ChapterDraft, error) {
+	return []bookentity.ChapterDraft{{Index: 1, Title: "第一章", Content: "内容"}}, nil
 }

@@ -133,3 +133,35 @@ docker compose -f deploy/docker-compose.yml --env-file .env up -d --build
 ## Harness 文档
 
 项目采用 Harness Engineering 工作流，产品/架构/契约/命令都在 `docs/` 下：`docs/README.md`。
+
+## 后端 DDD 结构
+
+后端当前采用模块化 DDD 分层：
+
+- `interface`：HTTP 输入输出与协议映射
+- `application`：用例入口、command/query handler、业务编排
+- `domain`：实体、仓储契约、领域 service
+- `infrastructure`：MySQL、JWT、本地文件存储、TXT 解析、配置
+
+当前顶层领域：
+
+- `identity`
+- `book`
+- `category`
+- `upload`
+
+当前代码约定：
+
+- `backend/internal/application/<domain>/application.go`
+- `backend/internal/application/<domain>/command/*.go`
+- `backend/internal/application/<domain>/query/*.go`
+- `backend/internal/domain/<domain>/entity/*.go`
+- `backend/internal/domain/<domain>/repository/*.go`
+- `backend/internal/domain/<domain>/service/*.go`
+- `backend/internal/infrastructure/data/mysql/model/*.go`
+- `backend/internal/infrastructure/data/mysql/repo/*.go`
+
+更完整的后端架构说明见：
+
+- [docs/architecture.md](docs/architecture.md)
+- [docs/backend-ddd.md](docs/backend-ddd.md)

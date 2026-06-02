@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"novel-reader/backend/internal/domain/identity"
+	identityentity "novel-reader/backend/internal/domain/identity/entity"
 	"novel-reader/backend/internal/domain/shared"
 )
 
@@ -31,7 +31,7 @@ func NewManager(secret []byte, ttl time.Duration) *Manager {
 	return &Manager{secret: secret, ttl: ttl}
 }
 
-func (m *Manager) Issue(user identity.User) (string, error) {
+func (m *Manager) Issue(user identityentity.User) (string, error) {
 	claims := Claims{
 		UserID:   user.ID,
 		Username: user.Username,

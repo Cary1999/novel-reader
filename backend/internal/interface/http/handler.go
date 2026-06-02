@@ -12,42 +12,49 @@ import (
 	"strings"
 
 	bookapp "novel-reader/backend/internal/application/book"
+	bookcommand "novel-reader/backend/internal/application/book/command"
+	bookquery "novel-reader/backend/internal/application/book/query"
 	categoryapp "novel-reader/backend/internal/application/category"
+	categorycommand "novel-reader/backend/internal/application/category/command"
 	identityapp "novel-reader/backend/internal/application/identity"
+	identitycommand "novel-reader/backend/internal/application/identity/command"
 	uploadapp "novel-reader/backend/internal/application/upload"
-	"novel-reader/backend/internal/domain/book"
-	"novel-reader/backend/internal/domain/identity"
+	identityentity "novel-reader/backend/internal/domain/identity/entity"
 	"novel-reader/backend/internal/domain/shared"
 	"novel-reader/backend/internal/infrastructure/auth/jwt"
 )
 
 type Handler struct {
-	identitySvc    *identityapp.Service
-	bookQueries    *bookapp.QueryService
-	bookManagement *bookapp.ManagementService
-	categorySvc    *categoryapp.Service
-	uploadSvc      *uploadapp.Service
-	tokens         *jwt.Manager
-	maxUploadBytes int64
-	coverDir       string
-	defaultCover   string
+	identityQueries  *identityapp.Queries
+	identityCommands *identityapp.Commands
+	bookQueries      *bookapp.Queries
+	bookCommands     *bookapp.Commands
+	categoryQueries  *categoryapp.Queries
+	categoryCommands *categoryapp.Commands
+	uploadSvc        *uploadapp.Service
+	tokens           *jwt.Manager
+	maxUploadBytes   int64
+	coverDir         string
+	defaultCover     string
 }
 
 type contextKey string
 
 const actorKey contextKey = "actor"
 
-func New(identitySvc *identityapp.Service, bookQueries *bookapp.QueryService, bookManagement *bookapp.ManagementService, categorySvc *categoryapp.Service, uploadSvc *uploadapp.Service, tokens *jwt.Manager, maxUploadBytes int64, coverDir string, defaultCover string) *Handler {
+func New(identityQueries *identityapp.Queries, identityCommands *identityapp.Commands, bookQueries *bookapp.Queries, bookCommands *bookapp.Commands, categoryQueries *categoryapp.Queries, categoryCommands *categoryapp.Commands, uploadSvc *uploadapp.Service, tokens *jwt.Manager, maxUploadBytes int64, coverDir string, defaultCover string) *Handler {
 	return &Handler{
-		identitySvc:    identitySvc,
-		bookQueries:    bookQueries,
-		bookManagement: bookManagement,
-		categorySvc:    categorySvc,
-		uploadSvc:      uploadSvc,
-		tokens:         tokens,
-		maxUploadBytes: maxUploadBytes,
-		coverDir:       coverDir,
-		defaultCover:   strings.TrimSpace(defaultCover),
+		identityQueries:  identityQueries,
+		identityCommands: identityCommands,
+		bookQueries:      bookQueries,
+		bookCommands:     bookCommands,
+		categoryQueries:  categoryQueries,
+		categoryCommands: categoryCommands,
+		uploadSvc:        uploadSvc,
+		tokens:           tokens,
+		maxUploadBytes:   maxUploadBytes,
+		coverDir:         coverDir,
+		defaultCover:     strings.TrimSpace(defaultCover),
 	}
 }
 
@@ -103,7 +110,10 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	user, err := h.identitySvc.Register(r.Context(), req.Username, req.Password)
+	user, err := h.identityCommands.Register.Handle(r.Context(), identitycommand.Register{
+		Username: req.Username,
+		Password: req.Password,
+	})
 	if err != nil {
 		writeError(w, err)
 		return
@@ -119,19 +129,22 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	token, user, err := h.identitySvc.Login(r.Context(), req.Username, req.Password)
+	result, err := h.identityCommands.Login.Handle(r.Context(), identitycommand.Login{
+		Username: req.Username,
+		Password: req.Password,
+	})
 	if err != nil {
 		writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"token": token,
-		"user":  publicUser(user),
+		"token": result.Token,
+		"user":  publicUser(result.User),
 	})
 }
 
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
-	user, err := h.identitySvc.CurrentUser(r.Context(), mustActor(r))
+	user, err := h.identityQueries.CurrentUser.Handle(r.Context(), mustActor(r))
 	if err != nil {
 		writeError(w, err)
 		return
@@ -146,7 +159,9 @@ func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	user, err := h.identitySvc.UpdateNickname(r.Context(), mustActor(r), req.Nickname)
+	user, err := h.identityCommands.UpdateNickname.Handle(r.Context(), mustActor(r), identitycommand.UpdateNickname{
+		Nickname: req.Nickname,
+	})
 	if err != nil {
 		writeError(w, err)
 		return
@@ -162,7 +177,10 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	if err := h.identitySvc.ChangePassword(r.Context(), mustActor(r), req.OldPassword, req.NewPassword); err != nil {
+	if err := h.identityCommands.ChangePassword.Handle(r.Context(), mustActor(r), identitycommand.ChangePassword{
+		OldPassword: req.OldPassword,
+		NewPassword: req.NewPassword,
+	}); err != nil {
 		writeError(w, err)
 		return
 	}
@@ -170,7 +188,7 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Categories(w http.ResponseWriter, r *http.Request) {
-	items, err := h.categorySvc.ListCategories(r.Context())
+	items, err := h.categoryQueries.ListCategories.Handle(r.Context())
 	if err != nil {
 		writeError(w, err)
 		return
@@ -182,7 +200,12 @@ func (h *Handler) SearchBooks(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	page := parseInt(query.Get("page"), 1)
 	pageSize := parseInt(query.Get("pageSize"), 20)
-	items, total, err := h.bookQueries.SearchBooks(r.Context(), query.Get("q"), query.Get("category"), page, pageSize)
+	items, total, err := h.bookQueries.SearchBooks.Handle(r.Context(), bookquery.SearchBooks{
+		Keyword:      query.Get("q"),
+		CategoryName: query.Get("category"),
+		Page:         page,
+		PageSize:     pageSize,
+	})
 	if err != nil {
 		writeError(w, err)
 		return
@@ -197,7 +220,7 @@ func (h *Handler) Recommendations(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	page := parseInt(query.Get("page"), 1)
 	pageSize := parseInt(query.Get("pageSize"), 20)
-	items, total, err := h.bookQueries.ListRecommendedBooks(r.Context(), page, pageSize)
+	items, total, err := h.bookQueries.ListRecommended.Handle(r.Context(), page, pageSize)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -213,7 +236,7 @@ func (h *Handler) BookDetail(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	item, err := h.bookQueries.GetBook(r.Context(), bookID)
+	item, err := h.bookQueries.GetBook.Handle(r.Context(), bookID)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -227,7 +250,7 @@ func (h *Handler) ChapterList(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	items, err := h.bookQueries.ListChapters(r.Context(), bookID)
+	items, err := h.bookQueries.ListChapters.Handle(r.Context(), bookID)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -244,7 +267,7 @@ func (h *Handler) ChapterDetail(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	item, err := h.bookQueries.GetChapter(r.Context(), bookID, chapterID)
+	item, err := h.bookQueries.GetChapter.Handle(r.Context(), bookID, chapterID)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -283,7 +306,7 @@ func (h *Handler) BookCover(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	item, err := h.bookQueries.GetBook(r.Context(), bookID)
+	item, err := h.bookQueries.GetBook.Handle(r.Context(), bookID)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -309,7 +332,12 @@ func (h *Handler) AdminBooks(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	page := parseInt(query.Get("page"), 1)
 	pageSize := parseInt(query.Get("pageSize"), 20)
-	items, total, err := h.bookManagement.ListBooks(r.Context(), query.Get("q"), query.Get("category"), page, pageSize)
+	items, total, err := h.bookQueries.SearchBooks.Handle(r.Context(), bookquery.SearchBooks{
+		Keyword:      query.Get("q"),
+		CategoryName: query.Get("category"),
+		Page:         page,
+		PageSize:     pageSize,
+	})
 	if err != nil {
 		writeError(w, err)
 		return
@@ -325,7 +353,13 @@ func (h *Handler) MyBooks(w http.ResponseWriter, r *http.Request) {
 	page := parseInt(query.Get("page"), 1)
 	pageSize := parseInt(query.Get("pageSize"), 20)
 	categoryID := parseInt64(query.Get("categoryId"), 0)
-	items, total, err := h.bookManagement.ListMyBooks(r.Context(), mustActor(r).UserID, query.Get("q"), categoryID, page, pageSize)
+	items, total, err := h.bookQueries.ListOwnedBooks.Handle(r.Context(), bookquery.ListOwnedBooks{
+		OwnerUserID: mustActor(r).UserID,
+		Keyword:     query.Get("q"),
+		CategoryID:  categoryID,
+		Page:        page,
+		PageSize:    pageSize,
+	})
 	if err != nil {
 		writeError(w, err)
 		return
@@ -345,7 +379,7 @@ func (h *Handler) CreateMyBook(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	item, err := h.bookManagement.CreateBook(r.Context(), mustActor(r), book.CreateInput{
+	item, err := h.bookCommands.CreateBook.Handle(r.Context(), mustActor(r), bookcommand.CreateBook{
 		Title:       req.Title,
 		CategoryID:  req.CategoryID,
 		Description: req.Description,
@@ -370,7 +404,7 @@ func (h *Handler) UploadBook(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	result, err := h.uploadSvc.UploadBook(r.Context(), mustActor(r), book.CreateInput{
+	result, err := h.uploadSvc.UploadBook(r.Context(), mustActor(r), bookcommand.CreateBook{
 		Title:       r.FormValue("title"),
 		CategoryID:  parseInt64(r.FormValue("categoryId"), 0),
 		Description: r.FormValue("description"),
@@ -387,11 +421,11 @@ func (h *Handler) UpdateBook(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var req book.MetadataInput
+	var req bookcommand.UpdateBookMetadata
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	item, err := h.bookManagement.UpdateBook(r.Context(), mustActor(r), bookID, req)
+	item, err := h.bookCommands.UpdateBook.Handle(r.Context(), mustActor(r), bookID, req)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -404,7 +438,7 @@ func (h *Handler) DeleteBook(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := h.bookManagement.DeleteBook(r.Context(), mustActor(r), bookID); err != nil {
+	if err := h.bookCommands.DeleteBook.Handle(r.Context(), mustActor(r), bookID); err != nil {
 		writeError(w, err)
 		return
 	}
@@ -416,11 +450,11 @@ func (h *Handler) AddChapter(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var req book.ChapterInput
+	var req bookcommand.SaveChapter
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	item, err := h.bookManagement.AddChapter(r.Context(), mustActor(r), bookID, req)
+	item, err := h.bookCommands.AddChapter.Handle(r.Context(), mustActor(r), bookID, req)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -437,11 +471,11 @@ func (h *Handler) UpdateChapter(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var req book.ChapterInput
+	var req bookcommand.SaveChapter
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	item, err := h.bookManagement.UpdateChapter(r.Context(), mustActor(r), bookID, chapterID, req)
+	item, err := h.bookCommands.UpdateChapter.Handle(r.Context(), mustActor(r), bookID, chapterID, req)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -458,7 +492,7 @@ func (h *Handler) DeleteChapter(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := h.bookManagement.DeleteChapter(r.Context(), mustActor(r), bookID, chapterID); err != nil {
+	if err := h.bookCommands.DeleteChapter.Handle(r.Context(), mustActor(r), bookID, chapterID); err != nil {
 		writeError(w, err)
 		return
 	}
@@ -472,7 +506,9 @@ func (h *Handler) CreateCategory(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	item, err := h.categorySvc.CreateCategory(r.Context(), req.Name)
+	item, err := h.categoryCommands.CreateCategory.Handle(r.Context(), categorycommand.CreateCategory{
+		Name: req.Name,
+	})
 	if err != nil {
 		writeError(w, err)
 		return
@@ -491,7 +527,9 @@ func (h *Handler) UpdateCategory(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	item, err := h.categorySvc.UpdateCategory(r.Context(), categoryID, req.Name)
+	item, err := h.categoryCommands.UpdateCategory.Handle(r.Context(), categoryID, categorycommand.UpdateCategory{
+		Name: req.Name,
+	})
 	if err != nil {
 		writeError(w, err)
 		return
@@ -504,7 +542,7 @@ func (h *Handler) DeleteCategory(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := h.categorySvc.DeleteCategory(r.Context(), categoryID); err != nil {
+	if err := h.categoryCommands.DeleteCategory.Handle(r.Context(), categoryID); err != nil {
 		writeError(w, err)
 		return
 	}
@@ -583,7 +621,7 @@ func writeError(w http.ResponseWriter, err error) {
 	writeJSON(w, http.StatusInternalServerError, map[string]string{"code": "INTERNAL", "message": "internal server error"})
 }
 
-func publicUser(user identity.User) map[string]any {
+func publicUser(user identityentity.User) map[string]any {
 	return map[string]any{"id": user.ID, "username": user.Username, "nickname": user.Nickname, "role": user.Role}
 }
 

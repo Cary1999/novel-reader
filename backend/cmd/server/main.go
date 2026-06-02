@@ -9,6 +9,8 @@ import (
 	"github.com/go-kratos/kratos/v2"
 	khttp "github.com/go-kratos/kratos/v2/transport/http"
 	_ "github.com/go-sql-driver/mysql"
+	gormmysql "gorm.io/driver/mysql"
+	"gorm.io/gorm"
 
 	bookapp "novel-reader/backend/internal/application/book"
 	categoryapp "novel-reader/backend/internal/application/category"
@@ -49,7 +51,12 @@ func main() {
 		log.Fatalf("ping mysql: %v", err)
 	}
 
-	store := mysql.NewStore(db)
+	gdb, err := gorm.Open(gormmysql.New(gormmysql.Config{Conn: db}), &gorm.Config{})
+	if err != nil {
+		log.Fatalf("open gorm mysql: %v", err)
+	}
+
+	store := mysql.NewStore(db, gdb)
 	if err := store.Migrate(ctx); err != nil {
 		log.Fatalf("migrate mysql: %v", err)
 	}
@@ -65,13 +72,15 @@ func main() {
 	coverStore := local.NewStore(cfg.CoverDir, cfg.MaxCoverBytes)
 	parser := txt.NewParser()
 
-	identitySvc := identityapp.NewService(store, tokenManager)
-	bookQueries := bookapp.NewQueryService(store)
-	bookManagement := bookapp.NewManagementService(store, store)
-	categorySvc := categoryapp.NewService(store)
+	identityQueries := identityapp.NewQueries(store)
+	identityCommands := identityapp.NewCommands(store, tokenManager)
+	bookQueries := bookapp.NewQueries(store)
+	bookCommands := bookapp.NewCommands(store, store)
+	categoryQueries := categoryapp.NewQueries(store)
+	categoryCommands := categoryapp.NewCommands(store)
 	uploadSvc := uploadapp.NewService(store, store, store, uploadStore, coverStore, parser)
 
-	handler := httpapi.New(identitySvc, bookQueries, bookManagement, categorySvc, uploadSvc, tokenManager, cfg.MaxUploadBytes, cfg.CoverDir, cfg.DefaultCoverFile)
+	handler := httpapi.New(identityQueries, identityCommands, bookQueries, bookCommands, categoryQueries, categoryCommands, uploadSvc, tokenManager, cfg.MaxUploadBytes, cfg.CoverDir, cfg.DefaultCoverFile)
 
 	httpSrv := khttp.NewServer(khttp.Address(cfg.HTTPAddr), khttp.Timeout(15*time.Second))
 	httpSrv.HandlePrefix("/", handler.Routes())

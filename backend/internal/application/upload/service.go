@@ -7,10 +7,15 @@ import (
 	"strconv"
 	"strings"
 
-	"novel-reader/backend/internal/domain/book"
-	"novel-reader/backend/internal/domain/category"
+	bookcommand "novel-reader/backend/internal/application/book/command"
+	uploadquery "novel-reader/backend/internal/application/upload/query"
+	bookentity "novel-reader/backend/internal/domain/book/entity"
+	bookrepository "novel-reader/backend/internal/domain/book/repository"
+	bookservice "novel-reader/backend/internal/domain/book/service"
+	categoryrepository "novel-reader/backend/internal/domain/category/repository"
 	"novel-reader/backend/internal/domain/shared"
-	"novel-reader/backend/internal/domain/upload"
+	uploadentity "novel-reader/backend/internal/domain/upload/entity"
+	uploadrepository "novel-reader/backend/internal/domain/upload/repository"
 )
 
 type FileStore interface {
@@ -22,7 +27,7 @@ type CoverStore interface {
 }
 
 type ChapterParser interface {
-	ParseChapters(text string) ([]book.ChapterDraft, error)
+	ParseChapters(text string) ([]bookentity.ChapterDraft, error)
 }
 
 type SavedFile struct {
@@ -32,38 +37,44 @@ type SavedFile struct {
 }
 
 type Service struct {
-	books      book.Repository
-	categories category.Repository
-	uploads    upload.Repository
-	files      FileStore
-	covers     CoverStore
-	parser     ChapterParser
+	books       bookrepository.BookRepository
+	bookService *bookservice.BookService
+	categories  categoryrepository.CategoryRepository
+	uploads     uploadrepository.UploadRepository
+	files       FileStore
+	covers      CoverStore
+	parser      ChapterParser
 }
 
-func NewService(books book.Repository, categories category.Repository, uploads upload.Repository, files FileStore, covers CoverStore, parser ChapterParser) *Service {
+func NewService(books bookrepository.BookRepository, categories categoryrepository.CategoryRepository, uploads uploadrepository.UploadRepository, files FileStore, covers CoverStore, parser ChapterParser) *Service {
 	return &Service{
-		books:      books,
-		categories: categories,
-		uploads:    uploads,
-		files:      files,
-		covers:     covers,
-		parser:     parser,
+		books:       books,
+		bookService: bookservice.NewBookService(books),
+		categories:  categories,
+		uploads:     uploads,
+		files:       files,
+		covers:      covers,
+		parser:      parser,
 	}
 }
 
-func (s *Service) UploadBook(ctx context.Context, actor shared.Actor, input book.CreateInput, originalName string, reader io.Reader) (upload.ImportResult, error) {
-	input.OwnerUserID = actor.UserID
-	categoryID, err := s.normalizeCreateInput(ctx, &input)
+func (s *Service) UploadBook(ctx context.Context, actor shared.Actor, input bookcommand.CreateBook, originalName string, reader io.Reader) (uploadquery.ImportResult, error) {
+	normalizedInput, err := bookcommand.NormalizeCreateBookForActor(input, actor.UserID)
 	if err != nil {
-		return upload.ImportResult{}, err
+		return uploadquery.ImportResult{}, err
 	}
+	categoryID, err := s.requireCategory(ctx, normalizedInput.CategoryID)
+	if err != nil {
+		return uploadquery.ImportResult{}, err
+	}
+	bookItem := s.bookService.NewBook(normalizedInput.Title, normalizedInput.Description, normalizedInput.OwnerUserID)
 
 	saved, err := s.files.SaveTXT(originalName, reader)
 	if err != nil {
-		return upload.ImportResult{}, uploadError(err)
+		return uploadquery.ImportResult{}, uploadError(err)
 	}
 
-	uploadID, err := s.uploads.CreateUpload(ctx, upload.Upload{
+	uploadID, err := s.uploads.CreateUpload(ctx, uploadentity.Upload{
 		ActorUserID:      actor.UserID,
 		OriginalFilename: originalName,
 		StoredPath:       saved.RelativePath,
@@ -71,24 +82,24 @@ func (s *Service) UploadBook(ctx context.Context, actor shared.Actor, input book
 		Status:           "uploaded",
 	})
 	if err != nil {
-		return upload.ImportResult{}, err
+		return uploadquery.ImportResult{}, err
 	}
 
 	chapters, err := s.parser.ParseChapters(saved.Content)
 	if err != nil {
 		_ = s.uploads.MarkUpload(ctx, uploadID, "failed", "no chapters found")
-		return upload.ImportResult{}, shared.NewError(http.StatusBadRequest, "PARSE_NO_CHAPTERS", "no chapters found in txt file")
+		return uploadquery.ImportResult{}, shared.NewError(http.StatusBadRequest, "PARSE_NO_CHAPTERS", "no chapters found in txt file")
 	}
-	bookID, err := s.books.CreateBookWithChapters(ctx, input, categoryID, uploadID, chapters)
+	bookID, err := s.books.CreateBookWithChapters(ctx, bookItem, categoryID, uploadID, chapters)
 	if err != nil {
 		_ = s.uploads.MarkUpload(ctx, uploadID, "failed", "book create failed")
-		return upload.ImportResult{}, err
+		return uploadquery.ImportResult{}, err
 	}
 	if err := s.uploads.MarkUpload(ctx, uploadID, "parsed", ""); err != nil {
-		return upload.ImportResult{}, err
+		return uploadquery.ImportResult{}, err
 	}
 
-	return upload.ImportResult{
+	return uploadquery.ImportResult{
 		BookID:            bookID,
 		ChapterCount:      len(chapters),
 		UploadID:          uploadID,
@@ -98,7 +109,7 @@ func (s *Service) UploadBook(ctx context.Context, actor shared.Actor, input book
 }
 
 func (s *Service) UploadCover(ctx context.Context, actor shared.Actor, bookID int64, originalName string, reader io.Reader) (string, error) {
-	if err := s.authorizeBookWrite(ctx, actor, bookID); err != nil {
+	if err := s.bookService.CanManageBook(ctx, bookID, actor); err != nil {
 		return "", err
 	}
 	saved, err := s.covers.SaveCover(originalName, reader)
@@ -114,45 +125,17 @@ func (s *Service) UploadCover(ctx context.Context, actor shared.Actor, bookID in
 	return "/api/books/" + strconv.FormatInt(bookID, 10) + "/cover", nil
 }
 
-func (s *Service) authorizeBookWrite(ctx context.Context, actor shared.Actor, bookID int64) error {
-	item, err := s.books.FindBook(ctx, bookID)
-	if err != nil {
-		if err == shared.ErrNotFound {
-			return shared.NewError(http.StatusNotFound, "NOT_FOUND", "book not found")
-		}
-		return err
-	}
-	if actor.Role == shared.RoleAdmin {
-		return nil
-	}
-	if item.OwnerUserID == nil || *item.OwnerUserID != actor.UserID {
-		return shared.NewError(http.StatusForbidden, "FORBIDDEN", "only the author can manage this book")
-	}
-	return nil
-}
-
-func (s *Service) normalizeCreateInput(ctx context.Context, input *book.CreateInput) (*int64, error) {
-	input.Title = strings.TrimSpace(input.Title)
-	input.Description = strings.TrimSpace(input.Description)
-	if input.Title == "" {
-		return nil, shared.NewError(http.StatusBadRequest, "BAD_REQUEST", "title is required")
-	}
-	if len([]rune(input.Title)) > 255 {
-		return nil, shared.NewError(http.StatusBadRequest, "BAD_REQUEST", "book title is too long")
-	}
-	if len([]rune(input.Description)) > 5000 {
-		return nil, shared.NewError(http.StatusBadRequest, "BAD_REQUEST", "description is too long")
-	}
-	if input.CategoryID <= 0 {
+func (s *Service) requireCategory(ctx context.Context, categoryID int64) (*int64, error) {
+	if categoryID <= 0 {
 		return nil, shared.NewError(http.StatusBadRequest, "BAD_REQUEST", "category is required")
 	}
-	if _, err := s.categories.FindCategoryByID(ctx, input.CategoryID); err != nil {
+	if _, err := s.categories.FindCategoryByID(ctx, categoryID); err != nil {
 		if err == shared.ErrNotFound {
 			return nil, shared.NewError(http.StatusNotFound, "NOT_FOUND", "category not found")
 		}
 		return nil, err
 	}
-	return &input.CategoryID, nil
+	return &categoryID, nil
 }
 
 func uploadError(err error) error {

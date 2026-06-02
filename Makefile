@@ -4,6 +4,7 @@ COMPOSE ?= docker compose -f deploy/docker-compose.yml --env-file .env
 BACKEND_DIR := backend
 FRONTEND_DIR := frontend
 SMOKE_SCRIPT := scripts/smoke.sh
+GO_CACHE_DIR := /private/tmp/novel-reader-go-cache
 
 .PHONY: dev test smoke docker-build clean ensure-env
 
@@ -19,7 +20,7 @@ dev: ensure-env
 test:
 	@if [ -f "$(BACKEND_DIR)/go.mod" ]; then \
 		echo "Running backend tests"; \
-		(cd "$(BACKEND_DIR)" && go test ./...); \
+		(cd "$(BACKEND_DIR)" && env GOCACHE="$(GO_CACHE_DIR)" go test ./...); \
 	else \
 		echo "Skipping backend tests: $(BACKEND_DIR)/go.mod is not present yet"; \
 	fi

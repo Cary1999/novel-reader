@@ -1,4 +1,4 @@
-package repository
+package mysql
 
 const schemaSQL = `
 CREATE TABLE IF NOT EXISTS users (

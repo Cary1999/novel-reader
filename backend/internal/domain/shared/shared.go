@@ -1,6 +1,24 @@
-package domain
+package shared
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
+
+type Role string
+
+const (
+	RoleUser  Role = "user"
+	RoleAdmin Role = "admin"
+)
+
+var ErrNotFound = errors.New("not found")
+
+type Actor struct {
+	UserID   int64
+	Username string
+	Role     Role
+}
 
 type AppError struct {
 	Code    string

@@ -10,12 +10,16 @@ import (
 	khttp "github.com/go-kratos/kratos/v2/transport/http"
 	_ "github.com/go-sql-driver/mysql"
 
-	"novel-reader/backend/internal/auth"
-	"novel-reader/backend/internal/config"
-	"novel-reader/backend/internal/httphandler"
-	"novel-reader/backend/internal/repository"
-	"novel-reader/backend/internal/service"
-	"novel-reader/backend/internal/storage"
+	bookapp "novel-reader/backend/internal/application/book"
+	categoryapp "novel-reader/backend/internal/application/category"
+	identityapp "novel-reader/backend/internal/application/identity"
+	uploadapp "novel-reader/backend/internal/application/upload"
+	"novel-reader/backend/internal/infrastructure/auth/jwt"
+	"novel-reader/backend/internal/infrastructure/config"
+	"novel-reader/backend/internal/infrastructure/parser/txt"
+	"novel-reader/backend/internal/infrastructure/persistence/mysql"
+	"novel-reader/backend/internal/infrastructure/storage/local"
+	httpapi "novel-reader/backend/internal/interface/http"
 )
 
 func main() {
@@ -45,24 +49,29 @@ func main() {
 		log.Fatalf("ping mysql: %v", err)
 	}
 
-	store := repository.NewMySQLStore(db)
+	store := mysql.NewStore(db)
 	if err := store.Migrate(ctx); err != nil {
 		log.Fatalf("migrate mysql: %v", err)
 	}
-	if err := store.Seed(ctx, repository.SeedOptions{
+	if err := store.Seed(ctx, mysql.SeedOptions{
 		AdminUsername: cfg.AdminUsername,
 		AdminPassword: cfg.AdminPassword,
 	}); err != nil {
 		log.Fatalf("seed mysql: %v", err)
 	}
 
-	tokenManager := auth.NewManager([]byte(cfg.JWTSecret), cfg.TokenTTL)
-	uploadStore := storage.NewLocalStore(cfg.UploadDir, cfg.MaxUploadBytes)
-	coverStore := storage.NewLocalStore(cfg.CoverDir, cfg.MaxCoverBytes)
-	authSvc := service.NewAuthService(store, tokenManager)
-	bookSvc := service.NewBookService(store)
-	adminSvc := service.NewAdminService(store, uploadStore, coverStore)
-	handler := httphandler.New(authSvc, bookSvc, adminSvc, tokenManager, cfg.MaxUploadBytes, cfg.CoverDir, cfg.DefaultCoverFile)
+	tokenManager := jwt.NewManager([]byte(cfg.JWTSecret), cfg.TokenTTL)
+	uploadStore := local.NewStore(cfg.UploadDir, cfg.MaxUploadBytes)
+	coverStore := local.NewStore(cfg.CoverDir, cfg.MaxCoverBytes)
+	parser := txt.NewParser()
+
+	identitySvc := identityapp.NewService(store, tokenManager)
+	bookQueries := bookapp.NewQueryService(store)
+	bookManagement := bookapp.NewManagementService(store, store)
+	categorySvc := categoryapp.NewService(store)
+	uploadSvc := uploadapp.NewService(store, store, store, uploadStore, coverStore, parser)
+
+	handler := httpapi.New(identitySvc, bookQueries, bookManagement, categorySvc, uploadSvc, tokenManager, cfg.MaxUploadBytes, cfg.CoverDir, cfg.DefaultCoverFile)
 
 	httpSrv := khttp.NewServer(khttp.Address(cfg.HTTPAddr), khttp.Timeout(15*time.Second))
 	httpSrv.HandlePrefix("/", handler.Routes())

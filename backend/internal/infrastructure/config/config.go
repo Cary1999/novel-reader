@@ -29,17 +29,15 @@ type Config struct {
 
 func Load() (Config, error) {
 	cfg := Config{
-		HTTPAddr:       env("HTTP_ADDR", ":8000"),
-		AdminUsername:  env("ADMIN_USERNAME", "admin"),
-		UploadDir:      env("UPLOAD_DIR", "data/uploads"),
-		CoverDir:       env("COVER_DIR", "data/uploads/covers"),
-		MaxUploadBytes: envInt64("MAX_UPLOAD_BYTES", 50*1024*1024),
-		MaxCoverBytes:  envInt64("MAX_COVER_BYTES", 10*1024*1024),
-		// If set, used as the placeholder returned by GET /api/books/{id}/cover when the book has no cover.
-		// Can be an absolute path, or a path relative to COVER_DIR.
+		HTTPAddr:         env("HTTP_ADDR", ":8000"),
+		AdminUsername:    env("ADMIN_USERNAME", "admin"),
+		UploadDir:        env("UPLOAD_DIR", "data/uploads"),
+		CoverDir:         env("COVER_DIR", "data/uploads/covers"),
+		MaxUploadBytes:   envInt64("MAX_UPLOAD_BYTES", 50*1024*1024),
+		MaxCoverBytes:    envInt64("MAX_COVER_BYTES", 10*1024*1024),
 		DefaultCoverFile: env("DEFAULT_COVER_FILE", ""),
-		DBMaxOpenConns: envInt("DB_MAX_OPEN_CONNS", 10),
-		DBMaxIdleConns: envInt("DB_MAX_IDLE_CONNS", 5),
+		DBMaxOpenConns:   envInt("DB_MAX_OPEN_CONNS", 10),
+		DBMaxIdleConns:   envInt("DB_MAX_IDLE_CONNS", 5),
 	}
 	cfg.DatabaseDSN = os.Getenv("DATABASE_DSN")
 	if cfg.DatabaseDSN == "" {

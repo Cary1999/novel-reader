@@ -1,4 +1,4 @@
-package repository
+package mysql
 
 import (
 	"context"
@@ -9,52 +9,27 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"novel-reader/backend/internal/domain"
+	"novel-reader/backend/internal/domain/book"
+	"novel-reader/backend/internal/domain/category"
+	"novel-reader/backend/internal/domain/identity"
+	"novel-reader/backend/internal/domain/shared"
+	"novel-reader/backend/internal/domain/upload"
 )
-
-type Store interface {
-	CreateUser(ctx context.Context, username, passwordHash string, role domain.Role) (domain.User, error)
-	FindUserByUsername(ctx context.Context, username string) (domain.User, error)
-	FindUserByID(ctx context.Context, id int64) (domain.User, error)
-	UpdateUserNickname(ctx context.Context, id int64, nickname string) (domain.User, error)
-	UpdateUserPassword(ctx context.Context, id int64, passwordHash string) error
-	ListCategories(ctx context.Context) ([]domain.Category, error)
-	FindCategoryByID(ctx context.Context, id int64) (domain.Category, error)
-	CreateCategory(ctx context.Context, name string) (domain.Category, error)
-	UpdateCategory(ctx context.Context, id int64, name string) (domain.Category, error)
-	DeleteCategory(ctx context.Context, id int64) error
-	SearchBooks(ctx context.Context, q, category string, page, pageSize int) ([]domain.Book, int, error)
-	ListRecommendedBooks(ctx context.Context, page, pageSize int) ([]domain.Book, int, error)
-	ListBooksByOwner(ctx context.Context, ownerID int64, q string, categoryID int64, page, pageSize int) ([]domain.Book, int, error)
-	FindBook(ctx context.Context, id int64) (domain.Book, error)
-	UpdateBookCoverPath(ctx context.Context, bookID int64, coverPath *string) error
-	ListChapters(ctx context.Context, bookID int64) ([]domain.Chapter, error)
-	FindChapter(ctx context.Context, bookID, chapterID int64) (domain.Chapter, error)
-	CreateUpload(ctx context.Context, upload domain.Upload) (int64, error)
-	MarkUpload(ctx context.Context, id int64, status, message string) error
-	CreateBookWithChapters(ctx context.Context, input domain.UploadBookInput, categoryID *int64, uploadID int64, chapters []domain.ChapterDraft) (int64, error)
-	CreateBook(ctx context.Context, input domain.UploadBookInput, categoryID *int64) (domain.Book, error)
-	UpdateBookMetadata(ctx context.Context, bookID int64, input domain.BookMetadataInput, categoryID *int64) (domain.Book, error)
-	DeleteBook(ctx context.Context, bookID int64) error
-	AddChapter(ctx context.Context, bookID int64, input domain.ChapterInput) (domain.Chapter, error)
-	UpdateChapter(ctx context.Context, bookID, chapterID int64, input domain.ChapterInput) (domain.Chapter, error)
-	DeleteChapter(ctx context.Context, bookID, chapterID int64) error
-}
 
 type SeedOptions struct {
 	AdminUsername string
 	AdminPassword string
 }
 
-type MySQLStore struct {
+type Store struct {
 	db *sql.DB
 }
 
-func NewMySQLStore(db *sql.DB) *MySQLStore {
-	return &MySQLStore{db: db}
+func NewStore(db *sql.DB) *Store {
+	return &Store{db: db}
 }
 
-func (s *MySQLStore) Migrate(ctx context.Context) error {
+func (s *Store) Migrate(ctx context.Context) error {
 	for _, stmt := range splitSQL(schemaSQL) {
 		if _, err := s.db.ExecContext(ctx, stmt); err != nil {
 			return fmt.Errorf("exec schema statement: %w", err)
@@ -84,7 +59,7 @@ func (s *MySQLStore) Migrate(ctx context.Context) error {
 	return nil
 }
 
-func (s *MySQLStore) Seed(ctx context.Context, opts SeedOptions) error {
+func (s *Store) Seed(ctx context.Context, opts SeedOptions) error {
 	hash, err := bcrypt.GenerateFromPassword([]byte(opts.AdminPassword), bcrypt.DefaultCost)
 	if err != nil {
 		return err
@@ -130,11 +105,11 @@ func (s *MySQLStore) Seed(ctx context.Context, opts SeedOptions) error {
 	if err := s.db.QueryRowContext(ctx, `SELECT id FROM categories WHERE name = ?`, "科幻").Scan(&categoryID); err != nil {
 		return err
 	}
-	chapters := []domain.ChapterDraft{
+	chapters := []book.ChapterDraft{
 		{Index: 1, Title: "第一章 本地书架", Content: "清晨的终端亮起，新的书架在本地服务中安静展开。"},
 		{Index: 2, Title: "Chapter 2 The Reader", Content: "A reader signs in and opens the next page without touching any remote content."},
 	}
-	_, err = s.CreateBookWithChapters(ctx, domain.UploadBookInput{
+	_, err = s.CreateBookWithChapters(ctx, book.CreateInput{
 		Title:       "星河书页",
 		OwnerUserID: adminID,
 		Description: "用于本地 smoke check 的示例小说。",
@@ -142,45 +117,45 @@ func (s *MySQLStore) Seed(ctx context.Context, opts SeedOptions) error {
 	return err
 }
 
-func (s *MySQLStore) CreateUser(ctx context.Context, username, passwordHash string, role domain.Role) (domain.User, error) {
+func (s *Store) CreateUser(ctx context.Context, username, passwordHash string, role shared.Role) (identity.User, error) {
 	result, err := s.db.ExecContext(ctx, `
 		INSERT INTO users (username, nickname, password_hash, role) VALUES (?, ?, ?, ?)
 	`, username, username, passwordHash, role)
 	if err != nil {
-		return domain.User{}, err
+		return identity.User{}, err
 	}
 	id, err := result.LastInsertId()
 	if err != nil {
-		return domain.User{}, err
+		return identity.User{}, err
 	}
 	return s.FindUserByID(ctx, id)
 }
 
-func (s *MySQLStore) FindUserByUsername(ctx context.Context, username string) (domain.User, error) {
+func (s *Store) FindUserByUsername(ctx context.Context, username string) (identity.User, error) {
 	return scanUser(s.db.QueryRowContext(ctx, `
 		SELECT id, username, nickname, password_hash, role, created_at, updated_at
 		FROM users WHERE username = ?
 	`, username))
 }
 
-func (s *MySQLStore) FindUserByID(ctx context.Context, id int64) (domain.User, error) {
+func (s *Store) FindUserByID(ctx context.Context, id int64) (identity.User, error) {
 	return scanUser(s.db.QueryRowContext(ctx, `
 		SELECT id, username, nickname, password_hash, role, created_at, updated_at
 		FROM users WHERE id = ?
 	`, id))
 }
 
-func (s *MySQLStore) UpdateUserNickname(ctx context.Context, id int64, nickname string) (domain.User, error) {
+func (s *Store) UpdateUserNickname(ctx context.Context, id int64, nickname string) (identity.User, error) {
 	if _, err := s.FindUserByID(ctx, id); err != nil {
-		return domain.User{}, err
+		return identity.User{}, err
 	}
 	if _, err := s.db.ExecContext(ctx, `UPDATE users SET nickname = ? WHERE id = ?`, nickname, id); err != nil {
-		return domain.User{}, err
+		return identity.User{}, err
 	}
 	return s.FindUserByID(ctx, id)
 }
 
-func (s *MySQLStore) UpdateUserPassword(ctx context.Context, id int64, passwordHash string) error {
+func (s *Store) UpdateUserPassword(ctx context.Context, id int64, passwordHash string) error {
 	result, err := s.db.ExecContext(ctx, `UPDATE users SET password_hash = ? WHERE id = ?`, passwordHash, id)
 	if err != nil {
 		return err
@@ -190,20 +165,20 @@ func (s *MySQLStore) UpdateUserPassword(ctx context.Context, id int64, passwordH
 		return err
 	}
 	if affected == 0 {
-		return sql.ErrNoRows
+		return shared.ErrNotFound
 	}
 	return nil
 }
 
-func (s *MySQLStore) ListCategories(ctx context.Context) ([]domain.Category, error) {
+func (s *Store) ListCategories(ctx context.Context) ([]category.Category, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT id, name, created_at FROM categories ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []domain.Category
+	var items []category.Category
 	for rows.Next() {
-		var item domain.Category
+		var item category.Category
 		if err := rows.Scan(&item.ID, &item.Name, &item.CreatedAt); err != nil {
 			return nil, err
 		}
@@ -212,45 +187,48 @@ func (s *MySQLStore) ListCategories(ctx context.Context) ([]domain.Category, err
 	return items, rows.Err()
 }
 
-func (s *MySQLStore) FindCategoryByID(ctx context.Context, id int64) (domain.Category, error) {
-	var item domain.Category
+func (s *Store) FindCategoryByID(ctx context.Context, id int64) (category.Category, error) {
+	var item category.Category
 	err := s.db.QueryRowContext(ctx, `SELECT id, name, created_at FROM categories WHERE id = ?`, id).Scan(&item.ID, &item.Name, &item.CreatedAt)
-	return item, err
+	if err != nil {
+		return category.Category{}, mapNotFound(err)
+	}
+	return item, nil
 }
 
-func (s *MySQLStore) CreateCategory(ctx context.Context, name string) (domain.Category, error) {
+func (s *Store) CreateCategory(ctx context.Context, name string) (category.Category, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return domain.Category{}, sql.ErrNoRows
+		return category.Category{}, shared.ErrNotFound
 	}
 	result, err := s.db.ExecContext(ctx, `INSERT INTO categories (name) VALUES (?)`, name)
 	if err != nil {
-		return domain.Category{}, err
+		return category.Category{}, err
 	}
 	id, err := result.LastInsertId()
 	if err != nil {
-		return domain.Category{}, err
+		return category.Category{}, err
 	}
 	return s.FindCategoryByID(ctx, id)
 }
 
-func (s *MySQLStore) UpdateCategory(ctx context.Context, id int64, name string) (domain.Category, error) {
+func (s *Store) UpdateCategory(ctx context.Context, id int64, name string) (category.Category, error) {
 	if _, err := s.FindCategoryByID(ctx, id); err != nil {
-		return domain.Category{}, err
+		return category.Category{}, err
 	}
 	if _, err := s.db.ExecContext(ctx, `UPDATE categories SET name = ? WHERE id = ?`, strings.TrimSpace(name), id); err != nil {
-		return domain.Category{}, err
+		return category.Category{}, err
 	}
 	return s.FindCategoryByID(ctx, id)
 }
 
-func (s *MySQLStore) DeleteCategory(ctx context.Context, id int64) error {
+func (s *Store) DeleteCategory(ctx context.Context, id int64) error {
 	var used int
 	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM books WHERE category_id = ?`, id).Scan(&used); err != nil {
 		return err
 	}
 	if used > 0 {
-		return domain.NewError(409, "CONFLICT", "category is used by books")
+		return shared.NewError(409, "CONFLICT", "category is used by books")
 	}
 	result, err := s.db.ExecContext(ctx, `DELETE FROM categories WHERE id = ?`, id)
 	if err != nil {
@@ -261,12 +239,12 @@ func (s *MySQLStore) DeleteCategory(ctx context.Context, id int64) error {
 		return err
 	}
 	if affected == 0 {
-		return sql.ErrNoRows
+		return shared.ErrNotFound
 	}
 	return nil
 }
 
-func (s *MySQLStore) SearchBooks(ctx context.Context, q, category string, page, pageSize int) ([]domain.Book, int, error) {
+func (s *Store) SearchBooks(ctx context.Context, q, categoryName string, page, pageSize int) ([]book.Book, int, error) {
 	args := []any{}
 	where := "WHERE 1=1"
 	if q != "" {
@@ -274,9 +252,9 @@ func (s *MySQLStore) SearchBooks(ctx context.Context, q, category string, page, 
 		where += " AND (b.title LIKE ? OR " + authorExprSQL() + " LIKE ? OR b.author LIKE ? OR b.description LIKE ?)"
 		args = append(args, like, like, like, like)
 	}
-	if category != "" {
+	if categoryName != "" {
 		where += " AND c.name = ?"
-		args = append(args, category)
+		args = append(args, categoryName)
 	}
 
 	var total int
@@ -295,11 +273,11 @@ func (s *MySQLStore) SearchBooks(ctx context.Context, q, category string, page, 
 		return nil, 0, err
 	}
 	defer rows.Close()
-	books, err := scanBooks(rows)
-	return books, total, err
+	items, err := scanBooks(rows)
+	return items, total, err
 }
 
-func (s *MySQLStore) ListRecommendedBooks(ctx context.Context, page, pageSize int) ([]domain.Book, int, error) {
+func (s *Store) ListRecommendedBooks(ctx context.Context, page, pageSize int) ([]book.Book, int, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -321,26 +299,11 @@ func (s *MySQLStore) ListRecommendedBooks(ctx context.Context, page, pageSize in
 		return nil, 0, err
 	}
 	defer rows.Close()
-	books, err := scanBooks(rows)
-	return books, total, err
+	items, err := scanBooks(rows)
+	return items, total, err
 }
 
-func (s *MySQLStore) UpdateBookCoverPath(ctx context.Context, bookID int64, coverPath *string) error {
-	result, err := s.db.ExecContext(ctx, `UPDATE books SET cover_path = ? WHERE id = ?`, coverPath, bookID)
-	if err != nil {
-		return err
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if affected == 0 {
-		return sql.ErrNoRows
-	}
-	return nil
-}
-
-func (s *MySQLStore) ListBooksByOwner(ctx context.Context, ownerID int64, q string, categoryID int64, page, pageSize int) ([]domain.Book, int, error) {
+func (s *Store) ListBooksByOwner(ctx context.Context, ownerID int64, q string, categoryID int64, page, pageSize int) ([]book.Book, int, error) {
 	args := []any{ownerID}
 	where := "WHERE b.owner_user_id = ?"
 	if q != "" {
@@ -367,34 +330,50 @@ func (s *MySQLStore) ListBooksByOwner(ctx context.Context, ownerID int64, q stri
 		return nil, 0, err
 	}
 	defer rows.Close()
-	books, err := scanBooks(rows)
-	return books, total, err
+	items, err := scanBooks(rows)
+	return items, total, err
 }
 
-func (s *MySQLStore) FindBook(ctx context.Context, id int64) (domain.Book, error) {
+func (s *Store) FindBook(ctx context.Context, id int64) (book.Book, error) {
 	row := s.db.QueryRowContext(ctx, `
 		`+booksSelectSQL()+`WHERE b.id = ?
 	`, id)
-	var book domain.Book
+	var item book.Book
 	var categoryID sql.NullInt64
 	var ownerID sql.NullInt64
 	var coverPath sql.NullString
-	if err := row.Scan(&book.ID, &book.Title, &book.Author, &ownerID, &categoryID, &book.Category, &book.Description, &book.ChapterCount, &book.LatestChapterTitle, &book.RecommendScore, &coverPath, &book.CreatedAt, &book.UpdatedAt); err != nil {
-		return domain.Book{}, err
+	err := row.Scan(&item.ID, &item.Title, &item.Author, &ownerID, &categoryID, &item.Category, &item.Description, &item.ChapterCount, &item.LatestChapterTitle, &item.RecommendScore, &coverPath, &item.CreatedAt, &item.UpdatedAt)
+	if err != nil {
+		return book.Book{}, mapNotFound(err)
 	}
 	if ownerID.Valid {
-		book.OwnerUserID = &ownerID.Int64
+		item.OwnerUserID = &ownerID.Int64
 	}
 	if categoryID.Valid {
-		book.CategoryID = &categoryID.Int64
+		item.CategoryID = &categoryID.Int64
 	}
 	if coverPath.Valid {
-		book.CoverPath = &coverPath.String
+		item.CoverPath = &coverPath.String
 	}
-	return book, nil
+	return item, nil
 }
 
-func (s *MySQLStore) ListChapters(ctx context.Context, bookID int64) ([]domain.Chapter, error) {
+func (s *Store) UpdateBookCoverPath(ctx context.Context, bookID int64, coverPath *string) error {
+	result, err := s.db.ExecContext(ctx, `UPDATE books SET cover_path = ? WHERE id = ?`, coverPath, bookID)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return shared.ErrNotFound
+	}
+	return nil
+}
+
+func (s *Store) ListChapters(ctx context.Context, bookID int64) ([]book.Chapter, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, book_id, chapter_index, title
 		FROM chapters WHERE book_id = ? ORDER BY chapter_index
@@ -403,43 +382,46 @@ func (s *MySQLStore) ListChapters(ctx context.Context, bookID int64) ([]domain.C
 		return nil, err
 	}
 	defer rows.Close()
-	var chapters []domain.Chapter
+	var items []book.Chapter
 	for rows.Next() {
-		var chapter domain.Chapter
-		if err := rows.Scan(&chapter.ID, &chapter.BookID, &chapter.Index, &chapter.Title); err != nil {
+		var item book.Chapter
+		if err := rows.Scan(&item.ID, &item.BookID, &item.Index, &item.Title); err != nil {
 			return nil, err
 		}
-		chapters = append(chapters, chapter)
+		items = append(items, item)
 	}
-	return chapters, rows.Err()
+	return items, rows.Err()
 }
 
-func (s *MySQLStore) FindChapter(ctx context.Context, bookID, chapterID int64) (domain.Chapter, error) {
-	var chapter domain.Chapter
+func (s *Store) FindChapter(ctx context.Context, bookID, chapterID int64) (book.Chapter, error) {
+	var item book.Chapter
 	err := s.db.QueryRowContext(ctx, `
 		SELECT id, book_id, chapter_index, title, content
 		FROM chapters WHERE book_id = ? AND id = ?
-	`, bookID, chapterID).Scan(&chapter.ID, &chapter.BookID, &chapter.Index, &chapter.Title, &chapter.Content)
-	return chapter, err
+	`, bookID, chapterID).Scan(&item.ID, &item.BookID, &item.Index, &item.Title, &item.Content)
+	if err != nil {
+		return book.Chapter{}, mapNotFound(err)
+	}
+	return item, nil
 }
 
-func (s *MySQLStore) CreateUpload(ctx context.Context, upload domain.Upload) (int64, error) {
+func (s *Store) CreateUpload(ctx context.Context, item upload.Upload) (int64, error) {
 	result, err := s.db.ExecContext(ctx, `
 		INSERT INTO uploads (admin_user_id, original_filename, stored_path, file_size, status)
 		VALUES (?, ?, ?, ?, ?)
-	`, upload.AdminUserID, upload.OriginalFilename, upload.StoredPath, upload.FileSize, upload.Status)
+	`, item.ActorUserID, item.OriginalFilename, item.StoredPath, item.FileSize, item.Status)
 	if err != nil {
 		return 0, err
 	}
 	return result.LastInsertId()
 }
 
-func (s *MySQLStore) MarkUpload(ctx context.Context, id int64, status, message string) error {
+func (s *Store) MarkUpload(ctx context.Context, id int64, status, message string) error {
 	_, err := s.db.ExecContext(ctx, `UPDATE uploads SET status = ?, error_message = ? WHERE id = ?`, status, message, id)
 	return err
 }
 
-func (s *MySQLStore) CreateBookWithChapters(ctx context.Context, input domain.UploadBookInput, categoryID *int64, uploadID int64, chapters []domain.ChapterDraft) (int64, error) {
+func (s *Store) CreateBookWithChapters(ctx context.Context, input book.CreateInput, categoryID *int64, uploadID int64, chapters []book.ChapterDraft) (int64, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, err
@@ -465,54 +447,53 @@ func (s *MySQLStore) CreateBookWithChapters(ctx context.Context, input domain.Up
 	if err != nil {
 		return 0, err
 	}
-	for i, chapter := range chapters {
-		index := chapter.Index
+	for i, chapterItem := range chapters {
+		index := chapterItem.Index
 		if index == 0 {
 			index = i + 1
 		}
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO chapters (book_id, chapter_index, title, content)
 			VALUES (?, ?, ?, ?)
-		`, bookID, index, chapter.Title, chapter.Content); err != nil {
+		`, bookID, index, chapterItem.Title, chapterItem.Content); err != nil {
 			return 0, err
 		}
 	}
 	return bookID, tx.Commit()
 }
 
-func (s *MySQLStore) CreateBook(ctx context.Context, input domain.UploadBookInput, categoryID *int64) (domain.Book, error) {
+func (s *Store) CreateBook(ctx context.Context, input book.CreateInput, categoryID *int64) (book.Book, error) {
 	result, err := s.db.ExecContext(ctx, `
 		INSERT INTO books (title, author, owner_user_id, category_id, description, chapter_count, latest_chapter_title)
 		VALUES (?, ?, ?, ?, ?, 0, '')
 	`, input.Title, legacyAuthor(input.OwnerUserID), input.OwnerUserID, categoryID, input.Description)
 	if err != nil {
-		return domain.Book{}, err
+		return book.Book{}, err
 	}
 	id, err := result.LastInsertId()
 	if err != nil {
-		return domain.Book{}, err
+		return book.Book{}, err
 	}
 	return s.FindBook(ctx, id)
 }
 
-func (s *MySQLStore) UpdateBookMetadata(ctx context.Context, bookID int64, input domain.BookMetadataInput, categoryID *int64) (domain.Book, error) {
+func (s *Store) UpdateBookMetadata(ctx context.Context, bookID int64, input book.MetadataInput, categoryID *int64) (book.Book, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return domain.Book{}, err
+		return book.Book{}, err
 	}
 	defer tx.Rollback()
 
 	if err := ensureBookExists(ctx, tx, bookID); err != nil {
-		return domain.Book{}, err
+		return book.Book{}, err
 	}
-	// recommend_score is optional in input to keep backward compatibility with older clients.
 	if input.RecommendScore != nil {
 		if _, err := tx.ExecContext(ctx, `
 			UPDATE books
 			SET title = ?, category_id = ?, description = ?, recommend_score = ?
 			WHERE id = ?
 		`, input.Title, categoryID, input.Description, *input.RecommendScore, bookID); err != nil {
-			return domain.Book{}, err
+			return book.Book{}, err
 		}
 	} else {
 		if _, err := tx.ExecContext(ctx, `
@@ -520,16 +501,16 @@ func (s *MySQLStore) UpdateBookMetadata(ctx context.Context, bookID int64, input
 			SET title = ?, category_id = ?, description = ?
 			WHERE id = ?
 		`, input.Title, categoryID, input.Description, bookID); err != nil {
-			return domain.Book{}, err
+			return book.Book{}, err
 		}
 	}
 	if err := tx.Commit(); err != nil {
-		return domain.Book{}, err
+		return book.Book{}, err
 	}
 	return s.FindBook(ctx, bookID)
 }
 
-func (s *MySQLStore) DeleteBook(ctx context.Context, bookID int64) error {
+func (s *Store) DeleteBook(ctx context.Context, bookID int64) error {
 	result, err := s.db.ExecContext(ctx, `DELETE FROM books WHERE id = ?`, bookID)
 	if err != nil {
 		return err
@@ -539,20 +520,20 @@ func (s *MySQLStore) DeleteBook(ctx context.Context, bookID int64) error {
 		return err
 	}
 	if affected == 0 {
-		return sql.ErrNoRows
+		return shared.ErrNotFound
 	}
 	return nil
 }
 
-func (s *MySQLStore) AddChapter(ctx context.Context, bookID int64, input domain.ChapterInput) (domain.Chapter, error) {
+func (s *Store) AddChapter(ctx context.Context, bookID int64, input book.ChapterInput) (book.Chapter, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return domain.Chapter{}, err
+		return book.Chapter{}, err
 	}
 	defer tx.Rollback()
 
 	if err := ensureBookExists(ctx, tx, bookID); err != nil {
-		return domain.Chapter{}, err
+		return book.Chapter{}, err
 	}
 	nextIndex := int64(1)
 	var maxIndex int64
@@ -564,7 +545,7 @@ func (s *MySQLStore) AddChapter(ctx context.Context, bookID int64, input domain.
 		FOR UPDATE
 	`, bookID).Scan(&maxIndex)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return domain.Chapter{}, err
+		return book.Chapter{}, err
 	}
 	if err == nil {
 		nextIndex = maxIndex + 1
@@ -574,25 +555,25 @@ func (s *MySQLStore) AddChapter(ctx context.Context, bookID int64, input domain.
 		VALUES (?, ?, ?, ?)
 	`, bookID, nextIndex, input.Title, input.Content)
 	if err != nil {
-		return domain.Chapter{}, err
+		return book.Chapter{}, err
 	}
 	chapterID, err := result.LastInsertId()
 	if err != nil {
-		return domain.Chapter{}, err
+		return book.Chapter{}, err
 	}
 	if err := refreshBookChapterStats(ctx, tx, bookID); err != nil {
-		return domain.Chapter{}, err
+		return book.Chapter{}, err
 	}
 	if err := tx.Commit(); err != nil {
-		return domain.Chapter{}, err
+		return book.Chapter{}, err
 	}
 	return s.FindChapter(ctx, bookID, chapterID)
 }
 
-func (s *MySQLStore) UpdateChapter(ctx context.Context, bookID, chapterID int64, input domain.ChapterInput) (domain.Chapter, error) {
+func (s *Store) UpdateChapter(ctx context.Context, bookID, chapterID int64, input book.ChapterInput) (book.Chapter, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return domain.Chapter{}, err
+		return book.Chapter{}, err
 	}
 	defer tx.Rollback()
 
@@ -600,24 +581,24 @@ func (s *MySQLStore) UpdateChapter(ctx context.Context, bookID, chapterID int64,
 	if err := tx.QueryRowContext(ctx, `
 		SELECT id FROM chapters WHERE book_id = ? AND id = ? FOR UPDATE
 	`, bookID, chapterID).Scan(&id); err != nil {
-		return domain.Chapter{}, err
+		return book.Chapter{}, mapNotFound(err)
 	}
 	if _, err := tx.ExecContext(ctx, `
 		UPDATE chapters SET title = ?, content = ?
 		WHERE book_id = ? AND id = ?
 	`, input.Title, input.Content, bookID, chapterID); err != nil {
-		return domain.Chapter{}, err
+		return book.Chapter{}, err
 	}
 	if err := refreshBookChapterStats(ctx, tx, bookID); err != nil {
-		return domain.Chapter{}, err
+		return book.Chapter{}, err
 	}
 	if err := tx.Commit(); err != nil {
-		return domain.Chapter{}, err
+		return book.Chapter{}, err
 	}
 	return s.FindChapter(ctx, bookID, chapterID)
 }
 
-func (s *MySQLStore) DeleteChapter(ctx context.Context, bookID, chapterID int64) error {
+func (s *Store) DeleteChapter(ctx context.Context, bookID, chapterID int64) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -628,7 +609,7 @@ func (s *MySQLStore) DeleteChapter(ctx context.Context, bookID, chapterID int64)
 	if err := tx.QueryRowContext(ctx, `
 		SELECT chapter_index FROM chapters WHERE book_id = ? AND id = ? FOR UPDATE
 	`, bookID, chapterID).Scan(&deletedIndex); err != nil {
-		return err
+		return mapNotFound(err)
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM chapters WHERE book_id = ? AND id = ?`, bookID, chapterID); err != nil {
 		return err
@@ -646,10 +627,13 @@ func (s *MySQLStore) DeleteChapter(ctx context.Context, bookID, chapterID int64)
 	return tx.Commit()
 }
 
-func scanUser(row *sql.Row) (domain.User, error) {
-	var user domain.User
+func scanUser(row *sql.Row) (identity.User, error) {
+	var user identity.User
 	err := row.Scan(&user.ID, &user.Username, &user.Nickname, &user.PasswordHash, &user.Role, &user.CreatedAt, &user.UpdatedAt)
-	return user, err
+	if err != nil {
+		return identity.User{}, mapNotFound(err)
+	}
+	return user, nil
 }
 
 type txQueryer interface {
@@ -659,7 +643,8 @@ type txQueryer interface {
 
 func ensureBookExists(ctx context.Context, tx txQueryer, bookID int64) error {
 	var id int64
-	return tx.QueryRowContext(ctx, `SELECT id FROM books WHERE id = ? FOR UPDATE`, bookID).Scan(&id)
+	err := tx.QueryRowContext(ctx, `SELECT id FROM books WHERE id = ? FOR UPDATE`, bookID).Scan(&id)
+	return mapNotFound(err)
 }
 
 func refreshBookChapterStats(ctx context.Context, tx txQueryer, bookID int64) error {
@@ -685,28 +670,28 @@ func refreshBookChapterStats(ctx context.Context, tx txQueryer, bookID int64) er
 	return nil
 }
 
-func scanBooks(rows *sql.Rows) ([]domain.Book, error) {
-	books := []domain.Book{}
+func scanBooks(rows *sql.Rows) ([]book.Book, error) {
+	items := []book.Book{}
 	for rows.Next() {
-		var book domain.Book
+		var item book.Book
 		var ownerID sql.NullInt64
 		var categoryID sql.NullInt64
 		var coverPath sql.NullString
-		if err := rows.Scan(&book.ID, &book.Title, &book.Author, &ownerID, &categoryID, &book.Category, &book.Description, &book.ChapterCount, &book.LatestChapterTitle, &book.RecommendScore, &coverPath, &book.CreatedAt, &book.UpdatedAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.Title, &item.Author, &ownerID, &categoryID, &item.Category, &item.Description, &item.ChapterCount, &item.LatestChapterTitle, &item.RecommendScore, &coverPath, &item.CreatedAt, &item.UpdatedAt); err != nil {
 			return nil, err
 		}
 		if ownerID.Valid {
-			book.OwnerUserID = &ownerID.Int64
+			item.OwnerUserID = &ownerID.Int64
 		}
 		if categoryID.Valid {
-			book.CategoryID = &categoryID.Int64
+			item.CategoryID = &categoryID.Int64
 		}
 		if coverPath.Valid {
-			book.CoverPath = &coverPath.String
+			item.CoverPath = &coverPath.String
 		}
-		books = append(books, book)
+		items = append(items, item)
 	}
-	return books, rows.Err()
+	return items, rows.Err()
 }
 
 func authorExprSQL() string {
@@ -739,7 +724,7 @@ func legacyAuthor(ownerUserID int64) string {
 	return ""
 }
 
-func (s *MySQLStore) ensureColumn(ctx context.Context, tableName, columnName, alterSQL string) error {
+func (s *Store) ensureColumn(ctx context.Context, tableName, columnName, alterSQL string) error {
 	var count int
 	if err := s.db.QueryRowContext(ctx, `
 		SELECT COUNT(*)
@@ -757,7 +742,7 @@ func (s *MySQLStore) ensureColumn(ctx context.Context, tableName, columnName, al
 	return nil
 }
 
-func (s *MySQLStore) ensureIndex(ctx context.Context, tableName, indexName, alterSQL string) error {
+func (s *Store) ensureIndex(ctx context.Context, tableName, indexName, alterSQL string) error {
 	var count int
 	if err := s.db.QueryRowContext(ctx, `
 		SELECT COUNT(*)
@@ -775,7 +760,7 @@ func (s *MySQLStore) ensureIndex(ctx context.Context, tableName, indexName, alte
 	return nil
 }
 
-func (s *MySQLStore) ensureForeignKey(ctx context.Context, tableName, constraintName, alterSQL string) error {
+func (s *Store) ensureForeignKey(ctx context.Context, tableName, constraintName, alterSQL string) error {
 	var count int
 	if err := s.db.QueryRowContext(ctx, `
 		SELECT COUNT(*)
@@ -805,6 +790,9 @@ func splitSQL(sqlText string) []string {
 	return statements
 }
 
-func IsNotFound(err error) bool {
-	return errors.Is(err, sql.ErrNoRows)
+func mapNotFound(err error) error {
+	if errors.Is(err, sql.ErrNoRows) {
+		return shared.ErrNotFound
+	}
+	return err
 }

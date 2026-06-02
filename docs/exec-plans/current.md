@@ -10,6 +10,7 @@
 - 已完成：`docs/exec-plans/phase-5-user-authoring-account-categories-search-empty.md`
 - 当前进行中：`docs/exec-plans/phase-6-ui-refresh-modern-reading-site.md`
 - 待开始：`docs/exec-plans/phase-7-recommendations-and-covers.md`
+- 当前进行中：`docs/exec-plans/phase-8-backend-ddd-refactor.md`
 
 ## 当前状态
 
@@ -25,6 +26,8 @@ Phase 2 的本轮 MVP 构建、接口和 smoke 验证已完成；浏览器视觉
 
 新需求“现代中文阅读站风格 UI 改版”已确认 Harness 草案，进入前端实现阶段。
 
+新需求“后端采用模块化 DDD 分层重构”已确认领域方案，进入后端文档与代码重构阶段。
+
 ## 下一步
 
 建议下一步进入：
@@ -35,6 +38,7 @@ Phase 2 的本轮 MVP 构建、接口和 smoke 验证已完成；浏览器视觉
 - 后续新需求继续先使用 `harness-agent-team` 更新 Harness 草案。
 - 可补充浏览器级移动端和桌面端视觉验收。
 - 完成 Phase 6 前端改版后，补一次浏览器级桌面端和移动端视觉验收。
+- 按 `docs/exec-plans/phase-8-backend-ddd-refactor.md` 推进后端分层重构，并在回归验证后更新 Harness 状态。
 
 Phase 7 将在 Phase 6 基础上继续推进：
 

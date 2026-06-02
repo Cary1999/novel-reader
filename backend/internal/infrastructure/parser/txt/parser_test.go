@@ -1,4 +1,4 @@
-package parser
+package txt
 
 import "testing"
 
@@ -13,7 +13,7 @@ func TestParseChaptersSupportsChineseArabicAndEnglishTitles(t *testing.T) {
 Chapter 3: Return
 English chapter content
 `
-	chapters, err := ParseChapters(input)
+	chapters, err := NewParser().ParseChapters(input)
 	if err != nil {
 		t.Fatalf("ParseChapters returned error: %v", err)
 	}
@@ -32,7 +32,7 @@ English chapter content
 }
 
 func TestParseChaptersRejectsTextWithoutChapterTitles(t *testing.T) {
-	_, err := ParseChapters("just a plain txt file\nwithout a chapter marker")
+	_, err := NewParser().ParseChapters("just a plain txt file\nwithout a chapter marker")
 	if err == nil {
 		t.Fatal("expected error")
 	}

@@ -1,26 +1,32 @@
-package parser
+package txt
 
 import (
 	"errors"
 	"regexp"
 	"strings"
 
-	"novel-reader/backend/internal/domain"
+	"novel-reader/backend/internal/domain/book"
 )
 
 var chapterTitlePattern = regexp.MustCompile(`(?i)^\s*((第\s*[0-9０-９一二三四五六七八九十百千万两]+\s*[章节回卷部].*)|(chapter\s+[0-9]+[\s:：.-]?.*))\s*$`)
 
-func ParseChapters(text string) ([]domain.ChapterDraft, error) {
+type Parser struct{}
+
+func NewParser() *Parser {
+	return &Parser{}
+}
+
+func (Parser) ParseChapters(text string) ([]book.ChapterDraft, error) {
 	normalized := strings.ReplaceAll(text, "\r\n", "\n")
 	normalized = strings.ReplaceAll(normalized, "\r", "\n")
 	lines := strings.Split(normalized, "\n")
 
-	var chapters []domain.ChapterDraft
+	var chapters []book.ChapterDraft
 	current := -1
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if isChapterTitle(trimmed) {
-			chapters = append(chapters, domain.ChapterDraft{
+			chapters = append(chapters, book.ChapterDraft{
 				Index: len(chapters) + 1,
 				Title: trimmed,
 			})

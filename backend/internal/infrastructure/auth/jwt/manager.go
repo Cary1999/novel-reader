@@ -1,4 +1,4 @@
-package auth
+package jwt
 
 import (
 	"crypto/hmac"
@@ -11,13 +11,14 @@ import (
 	"strings"
 	"time"
 
-	"novel-reader/backend/internal/domain"
+	"novel-reader/backend/internal/domain/identity"
+	"novel-reader/backend/internal/domain/shared"
 )
 
 type Claims struct {
 	UserID   int64       `json:"userId"`
 	Username string      `json:"username"`
-	Role     domain.Role `json:"role"`
+	Role     shared.Role `json:"role"`
 	Expires  int64       `json:"exp"`
 }
 
@@ -30,7 +31,7 @@ func NewManager(secret []byte, ttl time.Duration) *Manager {
 	return &Manager{secret: secret, ttl: ttl}
 }
 
-func (m *Manager) Issue(user domain.User) (string, error) {
+func (m *Manager) Issue(user identity.User) (string, error) {
 	claims := Claims{
 		UserID:   user.ID,
 		Username: user.Username,

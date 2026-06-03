@@ -1,11 +1,10 @@
 import { LibraryBig, Plus, RefreshCw, Save, Trash2, Upload, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { apiClient, ApiError } from "../api/client";
 import type { BookSummary, Category, ChapterDetail, ChapterSummary, UploadSummary } from "../api/types";
-import { useAuth } from "../auth/AuthContext";
 import { EmptyState, ErrorState, LoadingState } from "../components/StateViews";
-import { MAX_UPLOAD_LABEL, validateTxtUploadFile } from "../uploadLimits";
+import { MAX_COVER_LABEL, MAX_UPLOAD_LABEL, validateCoverUploadFile, validateTxtUploadFile } from "../uploadLimits";
 
 const PAGE_SIZE = 12;
 
@@ -36,7 +35,6 @@ const emptyChapterForm: ChapterForm = {
 };
 
 export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
-  const { isAdmin } = useAuth();
   const location = useLocation();
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -68,6 +66,32 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
   const totalPages = Math.max(Math.ceil(total / PAGE_SIZE), 1);
   const isAdminScope = location.pathname.startsWith("/admin");
   const pageTitle = isAdminScope ? "小说管理" : "我的作品";
+  const toolLabel = isAdminScope ? "管理员工具" : "作者工具";
+
+  function clearPendingCover() {
+    setPendingCoverFile(null);
+    setCoverPreviewUrl((prev) => {
+      if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+      return "";
+    });
+  }
+
+  function stageCoverFile(file: File) {
+    const fileError = validateCoverUploadFile(file);
+    if (fileError) {
+      setError(fileError);
+      return false;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    setCoverPreviewUrl((prev) => {
+      if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+      return objectUrl;
+    });
+    setPendingCoverFile(file);
+    setError("");
+    return true;
+  }
 
   function openUploadModal() {
     setUploadError("");
@@ -106,6 +130,7 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
       setUploadSummary(response);
       setMessage("上传解析完成");
       setIsUploadOpen(false);
+      setPage(1);
       await loadBooks(1);
     } catch (err) {
       setUploadError(err instanceof ApiError ? err.message : "上传失败，请稍后再试");
@@ -138,13 +163,14 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
     }
   }
 
-  async function selectBook(book: BookSummary) {
+  async function selectBook(book: BookSummary, options?: { preservePendingCover?: boolean }) {
     try {
       setError("");
       setMessage("");
       setIsCreating(false);
-      setCoverPreviewUrl("");
-      setPendingCoverFile(null);
+      if (!options?.preservePendingCover) {
+        clearPendingCover();
+      }
       const [detail, chapterResponse] = await Promise.all([
         apiClient.book(book.id),
         apiClient.chapters(book.id),
@@ -170,11 +196,7 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
     setChapters([]);
     setChapterForm(emptyChapterForm);
     setIsCreating(false);
-    setCoverPreviewUrl((prev) => {
-      if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
-      return "";
-    });
-    setPendingCoverFile(null);
+    clearPendingCover();
   }
 
   function startCreate() {
@@ -204,22 +226,45 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
       setIsSavingBook(true);
       setError("");
       if (isCreating) {
+        const coverFile = pendingCoverFile;
         const created = await apiClient.createBook({
           title: bookForm.title.trim(),
           categoryId: bookForm.categoryId,
           description: bookForm.description.trim(),
-        }, isAdmin ? "admin" : "me");
-        setMessage("小说已新建");
+        }, isAdminScope ? "admin" : "me");
+        let coverUploadError = "";
+        let createdMessage = "小说已新建";
+
+        if (coverFile) {
+          try {
+            setIsUploadingCover(true);
+            await apiClient.uploadBookCover(created.id, coverFile);
+            createdMessage = "小说和封面已创建";
+          } catch (err) {
+            coverUploadError = err instanceof ApiError ? err.message : "封面上传失败，请稍后再试";
+          } finally {
+            setIsUploadingCover(false);
+          }
+        }
+
         setIsCreating(false);
+        setPage(1);
         await loadBooks(1);
-        await selectBook(created);
+        await selectBook(created, { preservePendingCover: Boolean(coverUploadError) });
+        if (coverUploadError) {
+          setError(`小说已创建，但封面上传失败：${coverUploadError}`);
+          setMessage("");
+        } else {
+          setMessage(createdMessage);
+        }
       } else if (selectedBook) {
-        const updated = await apiClient.updateBook(selectedBook.id, {
+        const payload = {
           title: bookForm.title.trim(),
           categoryId: bookForm.categoryId,
           description: bookForm.description.trim(),
-          recommendScore: Number(bookForm.recommendScore || 0),
-        });
+          ...(isAdminScope ? { recommendScore: Number(bookForm.recommendScore || 0) } : {}),
+        };
+        const updated = await apiClient.updateBook(selectedBook.id, payload);
         let nextSelected = { ...selectedBook, ...updated };
         setSelectedBook(nextSelected);
         setBooks((items) => items.map((book) => book.id === updated.id ? { ...book, ...updated } : book));
@@ -232,11 +277,7 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
             nextSelected = { ...nextSelected, coverUrl: result.coverUrl };
             setSelectedBook(nextSelected);
             setBooks((items) => items.map((book) => book.id === selectedBook.id ? { ...book, coverUrl: result.coverUrl } : book));
-            setPendingCoverFile(null);
-            setCoverPreviewUrl((prev) => {
-              if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
-              return "";
-            });
+            clearPendingCover();
             setMessage("基础信息已保存，封面已更新");
           } finally {
             setIsUploadingCover(false);
@@ -330,7 +371,7 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
     <>
       <section className="page-banner admin-banner">
         <div>
-          <p className="eyebrow">{isAdmin ? "管理员工具" : "作者工具"}</p>
+          <p className="eyebrow">{toolLabel}</p>
           <h1>{pageTitle}</h1>
           <p className="muted">维护基础信息、章节正文、章节更新和删除操作。</p>
         </div>
@@ -410,7 +451,7 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
                   </label>
                   <label>
                     作者
-                    <input value={isCreating ? (isAdmin ? "系统" : "当前用户") : selectedBook?.author ?? ""} disabled />
+                    <input value={isCreating ? (isAdminScope ? "系统" : "当前用户") : selectedBook?.author ?? ""} disabled />
                   </label>
                 </div>
                 <label>
@@ -422,58 +463,51 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
                     ))}
                   </select>
                 </label>
-                <label>
-                  推荐度
-                  <input
-                    type="number"
-                    min={0}
-                    step={1}
-                    value={bookForm.recommendScore}
-                    onChange={(event) => setBookForm({ ...bookForm, recommendScore: event.target.value })}
-                  />
-                </label>
+                {isAdminScope ? (
+                  <label>
+                    推荐度
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={bookForm.recommendScore}
+                      onChange={(event) => setBookForm({ ...bookForm, recommendScore: event.target.value })}
+                    />
+                  </label>
+                ) : null}
                 <label>
                   简介
                   <textarea value={bookForm.description} rows={4} maxLength={1000} onChange={(event) => setBookForm({ ...bookForm, description: event.target.value })} />
                 </label>
-                {!isCreating && selectedBook ? (
+                {selectedBook || isCreating ? (
                   <label>
-                    书籍封面
+                    书籍封面（可选）
                     <input
                       className="cover-file-input"
                       id="book-cover-file"
                       type="file"
                       accept="image/png,image/jpeg,image/webp"
-                      onChange={async (event) => {
+                      onChange={(event) => {
                         const file = event.currentTarget.files?.[0];
-                        if (!file) return;
-                        if (file.size > 10 * 1024 * 1024) {
-                          setError("封面图片不能超过 10MB");
-                          event.currentTarget.value = "";
-                          return;
+                        if (file && stageCoverFile(file)) {
+                          setMessage(isCreating ? "已选择封面，创建小说时会一并上传" : "已选择新封面，点击保存后生效");
                         }
-
-                        // Immediate optimistic preview.
-                        const objectUrl = URL.createObjectURL(file);
-                        setCoverPreviewUrl((prev) => {
-                          if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
-                          return objectUrl;
-                        });
-                        setPendingCoverFile(file);
-                        setMessage("已选择新封面，点击保存后生效");
                         event.currentTarget.value = "";
                       }}
                     />
 
                     <div className={`cover-preview ${isUploadingCover ? "is-uploading" : ""}`}>
                       <label className="cover-preview-hit" htmlFor="book-cover-file" aria-label="点击更换封面">
-                        <img src={coverPreviewUrl || selectedBook.coverUrl || ""} alt="" />
-                        {!coverPreviewUrl && !selectedBook.coverUrl ? (
+                        {coverPreviewUrl || selectedBook?.coverUrl ? (
+                          <img src={coverPreviewUrl || selectedBook?.coverUrl || ""} alt="" />
+                        ) : null}
+                        {!coverPreviewUrl && !selectedBook?.coverUrl ? (
                           <span className="cover-preview-empty">点击选择封面</span>
                         ) : null}
-                        {isUploadingCover ? <span className="cover-preview-badge">上传中...</span> : pendingCoverFile ? <span className="cover-preview-badge">待保存</span> : null}
+                        {isUploadingCover ? <span className="cover-preview-badge">上传中...</span> : pendingCoverFile ? <span className="cover-preview-badge">{isCreating ? "待创建" : "待保存"}</span> : null}
                       </label>
                     </div>
+                    <small className="muted">支持 JPG、PNG、WebP，最大 {MAX_COVER_LABEL}。</small>
                   </label>
                 ) : null}
                 <button className="primary-button compact" type="submit" disabled={isSavingBook}>
@@ -547,7 +581,7 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
           <div className="modal panel">
             <div className="modal-head">
               <div>
-                <p className="eyebrow">{isAdminScope ? "管理员工具" : "作者工具"}</p>
+                <p className="eyebrow">{toolLabel}</p>
                 <h2>上传 txt 小说</h2>
               </div>
               <button className="ghost-button icon-button" type="button" onClick={() => setIsUploadOpen(false)} aria-label="关闭">

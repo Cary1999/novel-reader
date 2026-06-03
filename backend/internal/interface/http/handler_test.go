@@ -137,6 +137,48 @@ func TestAdminUploadParsesOnlyForAdmin(t *testing.T) {
 	assertErrorCode(t, rec.Body.String(), "BAD_REQUEST")
 }
 
+func TestRecommendScoreUpdateRejectsAuthor(t *testing.T) {
+	handler, tokens := testHandler(t)
+	token, err := tokens.Issue(identityentity.User{ID: 1, Username: "reader", Role: shared.RoleUser})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPatch, "/api/books/1", strings.NewReader(`{"title":"书名","categoryId":1,"description":"简介","recommendScore":9}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	assertErrorCode(t, rec.Body.String(), "FORBIDDEN")
+}
+
+func TestBookUpdatePreservesRecommendScoreWhenAuthorEditsMetadata(t *testing.T) {
+	handler, tokens := testHandler(t)
+	token, err := tokens.Issue(identityentity.User{ID: 1, Username: "reader", Role: shared.RoleUser})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPatch, "/api/books/1", strings.NewReader(`{"title":"新书名","categoryId":1,"description":"新简介"}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var item bookentity.Book
+	if err := json.Unmarshal(rec.Body.Bytes(), &item); err != nil {
+		t.Fatal(err)
+	}
+	if item.RecommendScore != 7 {
+		t.Fatalf("RecommendScore = %d, want 7", item.RecommendScore)
+	}
+}
+
 func testHandler(t *testing.T) (http.Handler, *jwt.Manager) {
 	t.Helper()
 	tokens := jwt.NewManager([]byte("test-secret"), time.Hour)
@@ -202,7 +244,7 @@ func (fakeBookRepo) ListBooksByOwner(context.Context, int64, string, int64, int,
 
 func (fakeBookRepo) FindBook(_ context.Context, id int64) (bookentity.Book, error) {
 	owner := int64(1)
-	return bookentity.Book{ID: id, OwnerUserID: &owner}, nil
+	return bookentity.Book{ID: id, OwnerUserID: &owner, RecommendScore: 7}, nil
 }
 
 func (fakeBookRepo) UpdateBookCoverPath(context.Context, int64, *string) error {
@@ -226,7 +268,7 @@ func (fakeBookRepo) CreateBook(_ context.Context, input bookentity.Book, _ *int6
 }
 
 func (fakeBookRepo) UpdateBookMetadata(_ context.Context, bookID int64, input bookentity.Book, _ *int64) (bookentity.Book, error) {
-	return bookentity.Book{ID: bookID, Title: input.Title, Author: "作者", Description: input.Description}, nil
+	return bookentity.Book{ID: bookID, Title: input.Title, Author: "作者", Description: input.Description, RecommendScore: input.RecommendScore}, nil
 }
 
 func (fakeBookRepo) DeleteBook(context.Context, int64) error {

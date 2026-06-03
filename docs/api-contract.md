@@ -335,7 +335,7 @@
 
 说明：
 
-- `recommendScore` 仅允许管理员或书籍作者更新。
+- `recommendScore` 仅允许管理员更新。
 - 作者不可修改。
 
 响应：

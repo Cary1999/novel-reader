@@ -5,7 +5,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -31,8 +33,8 @@ func Load() (Config, error) {
 	cfg := Config{
 		HTTPAddr:         env("HTTP_ADDR", ":8000"),
 		AdminUsername:    env("ADMIN_USERNAME", "admin"),
-		UploadDir:        env("UPLOAD_DIR", "data/uploads"),
-		CoverDir:         env("COVER_DIR", "data/uploads/covers"),
+		UploadDir:        resolveProjectPath(env("UPLOAD_DIR", "data/uploads")),
+		CoverDir:         resolveProjectPath(env("COVER_DIR", "data/uploads/covers")),
 		MaxUploadBytes:   envInt64("MAX_UPLOAD_BYTES", 50*1024*1024),
 		MaxCoverBytes:    envInt64("MAX_COVER_BYTES", 10*1024*1024),
 		DefaultCoverFile: env("DEFAULT_COVER_FILE", ""),
@@ -103,4 +105,35 @@ func randomHex(bytesLen int) string {
 		panic(err)
 	}
 	return hex.EncodeToString(buf)
+}
+
+func resolveProjectPath(path string) string {
+	if strings.TrimSpace(path) == "" {
+		return path
+	}
+	if filepath.IsAbs(path) {
+		return filepath.Clean(path)
+	}
+	if root := detectProjectRoot(); root != "" {
+		return filepath.Join(root, filepath.Clean(path))
+	}
+	return filepath.Clean(path)
+}
+
+func detectProjectRoot() string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	dir := cwd
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "AGENTS.md")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
 }

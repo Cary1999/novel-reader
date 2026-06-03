@@ -9,7 +9,7 @@
 - 已完成：`docs/exec-plans/phase-4-admin-book-management.md`
 - 已完成：`docs/exec-plans/phase-5-user-authoring-account-categories-search-empty.md`
 - 当前进行中：`docs/exec-plans/phase-6-ui-refresh-modern-reading-site.md`
-- 待开始：`docs/exec-plans/phase-7-recommendations-and-covers.md`
+- 当前进行中：`docs/exec-plans/phase-7-recommendations-and-covers.md`
 - 当前进行中：`docs/exec-plans/phase-8-backend-ddd-refactor.md`
 
 ## 当前状态
@@ -28,6 +28,8 @@ Phase 2 的本轮 MVP 构建、接口和 smoke 验证已完成；浏览器视觉
 
 新需求“后端采用模块化 DDD 分层重构”已确认领域方案，进入后端文档与代码重构阶段。
 
+新需求补充“新建小说时可直接设置封面”已按“两步提交、单次交互”的默认方案完成首轮实现，并通过前端与项目级测试。
+
 ## 下一步
 
 建议下一步进入：
@@ -44,4 +46,6 @@ Phase 7 将在 Phase 6 基础上继续推进：
 
 - 首页展示数量上限（搜索/最新入库最多 8 本）与“查看更多”跳转策略。
 - 推荐榜单（推荐度字段 + 排序接口 + 前端展示）。
+- 推荐度权限收紧为仅管理员可设置。
 - 书籍封面上传与占位图返回策略。
+- 新建小说表单支持预先选择封面，并在创建成功后立即完成封面上传或提示可重试的部分成功状态。

@@ -41,8 +41,18 @@ func (h *UpdateBookHandler) Handle(ctx context.Context, actor shared.Actor, book
 	if err != nil {
 		return bookentity.Book{}, err
 	}
-	recommendScore := 0
-	if normalizedInput.RecommendScore != nil {
+	current, err := h.booksRepo.FindBook(ctx, bookID)
+	if err != nil {
+		if err == shared.ErrNotFound {
+			return bookentity.Book{}, shared.NewError(http.StatusNotFound, "NOT_FOUND", "book not found")
+		}
+		return bookentity.Book{}, err
+	}
+	if normalizedInput.RecommendScore != nil && actor.Role != shared.RoleAdmin {
+		return bookentity.Book{}, shared.NewError(http.StatusForbidden, "FORBIDDEN", "only admin can update recommend score")
+	}
+	recommendScore := current.RecommendScore
+	if actor.Role == shared.RoleAdmin && normalizedInput.RecommendScore != nil {
 		recommendScore = *normalizedInput.RecommendScore
 	}
 	item, err := h.booksRepo.UpdateBookMetadata(ctx, bookID, h.bookService.BuildMetadata(normalizedInput.Title, normalizedInput.Description, recommendScore), categoryID)

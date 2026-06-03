@@ -65,3 +65,8 @@ docker compose -f deploy/docker-compose.yml --env-file .env up -d mysql
 cd backend && DATABASE_DSN="novel_reader:change-me-db-password@tcp(127.0.0.1:3306)/novel_reader?charset=utf8mb4&parseTime=True&loc=Local" HTTP_ADDR=:8000 go run ./cmd/server
 cd frontend && npm run dev
 ```
+
+补充说明：
+
+- 本地从 `backend/` 目录执行 `go run ./cmd/server` 时，默认相对存储目录会自动解析到仓库根目录下的 `data/uploads` 与 `data/uploads/covers`，与 Docker 运行时保持一致。
+- 如需自定义位置，显式设置 `UPLOAD_DIR` 和 `COVER_DIR` 即可。

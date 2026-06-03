@@ -81,6 +81,25 @@ describe("apiClient", () => {
     expect(headers.get("Authorization")).toBe("Bearer admin-token");
   });
 
+  it("uploads cover files as multipart form data", async () => {
+    tokenStore.set("user-token");
+    const file = new File(["cover"], "cover.png", { type: "image/png" });
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({
+      coverUrl: "/api/books/1/cover",
+    })));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await apiClient.uploadBookCover(1, file);
+
+    const [input, options] = fetchMock.mock.calls[0];
+    const headers = options?.headers as Headers;
+    expect(input).toBe("/api/books/1/cover");
+    expect(options?.method).toBe("POST");
+    expect(options?.body).toBeInstanceOf(FormData);
+    expect(headers.get("Content-Type")).toBeNull();
+    expect(headers.get("Authorization")).toBe("Bearer user-token");
+  });
+
   it("serializes book categoryId as a number for json create requests", async () => {
     tokenStore.set("user-token");
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({

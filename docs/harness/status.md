@@ -24,6 +24,10 @@ Phase 7 进行中：推荐榜单（推荐度字段）、书籍封面上传与占
 
 Phase 8 已完成本轮后端内部结构重构：领域实体、领域仓储契约、应用 command/query、MySQL 数据模型和 MySQL 仓储实现已分离。
 
+已新增流程约束：后续凡是涉及后端的需求，都必须在 Harness 草案阶段主动完成 DDD 影响评估，再进入实现。
+
+Phase 9 已进入实现：管理员系统设置已按独立 `site` domain 设计，覆盖站点品牌文案与站点图标配置。
+
 当前 `make test`、前端 `npm run build`、`make docker-build` 和 `BASE_URL=http://localhost:8001 make smoke` 已通过。
 
 ## 已具备内容

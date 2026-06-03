@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"log"
+	"path/filepath"
 	"time"
 
 	"github.com/go-kratos/kratos/v2"
@@ -15,6 +16,7 @@ import (
 	bookapp "novel-reader/backend/internal/application/book"
 	categoryapp "novel-reader/backend/internal/application/category"
 	identityapp "novel-reader/backend/internal/application/identity"
+	siteapp "novel-reader/backend/internal/application/site"
 	uploadapp "novel-reader/backend/internal/application/upload"
 	"novel-reader/backend/internal/infrastructure/auth/jwt"
 	"novel-reader/backend/internal/infrastructure/config"
@@ -70,6 +72,7 @@ func main() {
 	tokenManager := jwt.NewManager([]byte(cfg.JWTSecret), cfg.TokenTTL)
 	uploadStore := local.NewStore(cfg.UploadDir, cfg.MaxUploadBytes)
 	coverStore := local.NewStore(cfg.CoverDir, cfg.MaxCoverBytes)
+	siteIconStore := local.NewStore(filepath.Join(cfg.CoverDir, "site"), cfg.MaxCoverBytes)
 	parser := txt.NewParser()
 
 	identityQueries := identityapp.NewQueries(store)
@@ -78,9 +81,11 @@ func main() {
 	bookCommands := bookapp.NewCommands(store, store)
 	categoryQueries := categoryapp.NewQueries(store)
 	categoryCommands := categoryapp.NewCommands(store)
+	siteQueries := siteapp.NewQueries(store)
+	siteCommands := siteapp.NewCommands(store, siteIconStore)
 	uploadSvc := uploadapp.NewService(store, store, store, uploadStore, coverStore, parser)
 
-	handler := httpapi.New(identityQueries, identityCommands, bookQueries, bookCommands, categoryQueries, categoryCommands, uploadSvc, tokenManager, cfg.MaxUploadBytes, cfg.CoverDir, cfg.DefaultCoverFile)
+	handler := httpapi.New(identityQueries, identityCommands, bookQueries, bookCommands, categoryQueries, categoryCommands, siteQueries, siteCommands, uploadSvc, tokenManager, cfg.MaxUploadBytes, cfg.MaxCoverBytes, cfg.CoverDir, filepath.Join(cfg.CoverDir, "site"), cfg.DefaultCoverFile)
 
 	httpSrv := khttp.NewServer(khttp.Address(cfg.HTTPAddr), khttp.Timeout(15*time.Second))
 	httpSrv.HandlePrefix("/", handler.Routes())

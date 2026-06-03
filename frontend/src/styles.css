@@ -104,14 +104,6 @@ button:disabled {
   padding-block: 36px 60px;
 }
 
-.site-topline {
-  background: #0f1522;
-  color: rgba(255, 255, 255, 0.78);
-  font-family: var(--font-sans);
-  font-size: 0.82rem;
-}
-
-.site-topline-inner,
 .site-footer-inner,
 .site-header-inner,
 .brand,
@@ -133,7 +125,6 @@ button:disabled {
   align-items: center;
 }
 
-.site-topline-inner,
 .site-footer-inner {
   justify-content: space-between;
   gap: 16px;
@@ -173,6 +164,13 @@ button:disabled {
     linear-gradient(145deg, rgba(255, 255, 255, 0.16), transparent 60%),
     linear-gradient(135deg, #f07a3a, #b94a1a 68%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24);
+}
+
+.brand-mark img {
+  width: 100%;
+  height: 100%;
+  border-radius: 14px;
+  object-fit: cover;
 }
 
 .brand-copy {
@@ -1819,6 +1817,72 @@ textarea:focus {
   gap: 18px;
 }
 
+.site-settings-grid {
+  display: grid;
+  gap: 18px;
+}
+
+.site-settings-form,
+.site-icon-card {
+  min-width: 0;
+}
+
+.site-icon-card {
+  display: grid;
+  gap: 16px;
+}
+
+.site-icon-picker {
+  position: relative;
+  display: grid;
+  gap: 14px;
+  cursor: pointer;
+}
+
+.site-icon-picker input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.site-icon-preview {
+  display: grid;
+  place-items: center;
+  min-height: 180px;
+  border: 1px dashed rgba(152, 121, 94, 0.26);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.62);
+  transition:
+    border-color 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.site-icon-picker:hover .site-icon-preview {
+  transform: translateY(-1px);
+  border-color: rgba(216, 112, 44, 0.35);
+  box-shadow: var(--shadow-card);
+}
+
+.site-icon-preview img {
+  width: 120px;
+  height: 120px;
+  border-radius: 24px;
+  object-fit: cover;
+  box-shadow: var(--shadow-card);
+}
+
+.site-icon-meta {
+  margin: 0;
+  text-align: center;
+  color: var(--muted);
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-weight: 700;
+}
+
 .category-admin-row {
   display: flex;
   align-items: center;
@@ -1920,7 +1984,6 @@ textarea:focus {
     padding-block: 22px 40px;
   }
 
-  .site-topline-inner,
   .site-footer-inner {
     justify-content: center;
     text-align: center;

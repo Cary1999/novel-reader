@@ -100,6 +100,48 @@ describe("apiClient", () => {
     expect(headers.get("Authorization")).toBe("Bearer user-token");
   });
 
+  it("loads public site settings without auth", async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({
+      brandName: "阅卷书屋",
+      brandSubtitle: "Local Reading Archive",
+      brandIconUrl: "/api/site-settings/icon",
+      heroEyebrow: "发现好故事",
+      heroTitle: "一站式书屋",
+      heroDescription: "说明",
+    })));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await apiClient.siteSettings();
+
+    const [input, options] = fetchMock.mock.calls[0];
+    const headers = options?.headers as Headers;
+    expect(input).toBe("/api/site-settings");
+    expect(headers.get("Authorization")).toBeNull();
+  });
+
+  it("uploads site icon as multipart form data", async () => {
+    tokenStore.set("admin-token");
+    const file = new File(["icon"], "icon.svg", { type: "image/svg+xml" });
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({
+      brandName: "阅卷书屋",
+      brandSubtitle: "Local Reading Archive",
+      brandIconUrl: "/api/site-settings/icon",
+      heroEyebrow: "发现好故事",
+      heroTitle: "一站式书屋",
+      heroDescription: "说明",
+    })));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await apiClient.uploadSiteIcon(file);
+
+    const [input, options] = fetchMock.mock.calls[0];
+    const headers = options?.headers as Headers;
+    expect(input).toBe("/api/admin/site-settings/icon");
+    expect(options?.body).toBeInstanceOf(FormData);
+    expect(headers.get("Content-Type")).toBeNull();
+    expect(headers.get("Authorization")).toBe("Bearer admin-token");
+  });
+
   it("serializes book categoryId as a number for json create requests", async () => {
     tokenStore.set("user-token");
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({

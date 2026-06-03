@@ -11,6 +11,8 @@ import type {
   PagedBooks,
   RegisterResponse,
   SearchBooksParams,
+  SiteSettings,
+  SiteSettingsInput,
   UploadBookInput,
   UploadSummary,
 } from "./types";
@@ -136,6 +138,28 @@ export const apiClient = {
 
   categories() {
     return request<{ items: Category[] }>("/api/categories");
+  },
+
+  siteSettings() {
+    return request<SiteSettings>("/api/site-settings", {
+      cache: "no-store",
+    });
+  },
+
+  updateSiteSettings(input: SiteSettingsInput) {
+    return request<SiteSettings>("/api/admin/site-settings", {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    });
+  },
+
+  uploadSiteIcon(file: File) {
+    const formData = new FormData();
+    formData.set("file", file);
+    return request<SiteSettings>("/api/admin/site-settings/icon", {
+      method: "POST",
+      body: formData,
+    });
   },
 
   searchBooks(params: SearchBooksParams = {}) {

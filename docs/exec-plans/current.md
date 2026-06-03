@@ -11,6 +11,7 @@
 - 当前进行中：`docs/exec-plans/phase-6-ui-refresh-modern-reading-site.md`
 - 当前进行中：`docs/exec-plans/phase-7-recommendations-and-covers.md`
 - 当前进行中：`docs/exec-plans/phase-8-backend-ddd-refactor.md`
+- 当前进行中：`docs/exec-plans/phase-9-site-brand-settings.md`
 
 ## 当前状态
 
@@ -30,6 +31,10 @@ Phase 2 的本轮 MVP 构建、接口和 smoke 验证已完成；浏览器视觉
 
 新需求补充“新建小说时可直接设置封面”已按“两步提交、单次交互”的默认方案完成首轮实现，并通过前端与项目级测试。
 
+新需求“管理员系统设置站点图标与品牌文案”已完成首轮实现，并通过后端测试、前端测试、前端构建和项目级 `make test` 验证。
+
+后续凡是涉及后端的需求，均需在 Harness 草案阶段主动补充 DDD 影响评估，再进入实现。
+
 ## 下一步
 
 建议下一步进入：
@@ -38,6 +43,7 @@ Phase 2 的本轮 MVP 构建、接口和 smoke 验证已完成；浏览器视觉
 - 或释放 `8000` 端口后重启 Docker 后端容器。
 - 补充浏览器级移动端和桌面端视觉验收。
 - 后续新需求继续先使用 `harness-agent-team` 更新 Harness 草案。
+- 如确认站点品牌设置需求，进入 `docs/exec-plans/phase-9-site-brand-settings.md` 的契约与实现阶段。
 - 可补充浏览器级移动端和桌面端视觉验收。
 - 完成 Phase 6 前端改版后，补一次浏览器级桌面端和移动端视觉验收。
 - 按 `docs/exec-plans/phase-8-backend-ddd-refactor.md` 推进后端分层重构，并在回归验证后更新 Harness 状态。

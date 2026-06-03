@@ -1,28 +1,24 @@
 import { BookOpen, LibraryBig, LogOut, Search, UserPlus } from "lucide-react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { useSiteSettings } from "../site/SiteSettingsContext";
 
 export function Layout() {
   const { isAuthenticated, isAdmin, user, logout } = useAuth();
   const location = useLocation();
+  const { settings } = useSiteSettings();
 
   return (
     <div className="app-frame">
-      <div className="site-topline">
-        <div className="shell site-topline-inner">
-          <span>本地书库</span>
-          <span>发现、阅读、上传与维护你自己的小说</span>
-        </div>
-      </div>
       <header className="site-header">
         <div className="shell site-header-inner">
           <Link className="brand" to="/" aria-label="回到首页">
             <span className="brand-mark" aria-hidden="true">
-              <BookOpen size={22} />
+              <img src={settings.brandIconUrl} alt="" />
             </span>
             <span className="brand-copy">
-              <strong>阅卷书屋</strong>
-              <small>Local Reading Archive</small>
+              <strong>{settings.brandName}</strong>
+              <small>{settings.brandSubtitle}</small>
             </span>
           </Link>
           <nav className="site-nav" aria-label="主导航">

@@ -23,6 +23,7 @@
   - `identity`
   - `book`
   - `category`
+  - `site`
   - `upload`
 - `chapter` 作为 `book` 域内核心实体，不单独升为顶层领域。
 - `reading`、`book-management`、`chapter-management`、`upload-import` 作为应用层用例，不作为领域命名。

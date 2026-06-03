@@ -13,11 +13,14 @@ import (
 	bookapp "novel-reader/backend/internal/application/book"
 	categoryapp "novel-reader/backend/internal/application/category"
 	identityapp "novel-reader/backend/internal/application/identity"
+	siteapp "novel-reader/backend/internal/application/site"
+	sitecommand "novel-reader/backend/internal/application/site/command"
 	uploadapp "novel-reader/backend/internal/application/upload"
 	bookentity "novel-reader/backend/internal/domain/book/entity"
 	categoryentity "novel-reader/backend/internal/domain/category/entity"
 	identityentity "novel-reader/backend/internal/domain/identity/entity"
 	"novel-reader/backend/internal/domain/shared"
+	siteentity "novel-reader/backend/internal/domain/site/entity"
 	uploadentity "novel-reader/backend/internal/domain/upload/entity"
 	"novel-reader/backend/internal/infrastructure/auth/jwt"
 )
@@ -137,6 +140,43 @@ func TestAdminUploadParsesOnlyForAdmin(t *testing.T) {
 	assertErrorCode(t, rec.Body.String(), "BAD_REQUEST")
 }
 
+func TestSiteSettingsIsPublic(t *testing.T) {
+	handler, _ := testHandler(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/site-settings", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var item siteentity.Settings
+	if err := json.Unmarshal(rec.Body.Bytes(), &item); err != nil {
+		t.Fatal(err)
+	}
+	if item.BrandName == "" || item.BrandIconURL != "/api/site-settings/icon" {
+		t.Fatalf("unexpected site settings response: %#v", item)
+	}
+}
+
+func TestAdminSiteSettingsRejectsNonAdminToken(t *testing.T) {
+	handler, tokens := testHandler(t)
+	token, err := tokens.Issue(identityentity.User{ID: 7, Username: "reader", Role: shared.RoleUser})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPatch, "/api/admin/site-settings", strings.NewReader(`{"brandName":"新站名"}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	assertErrorCode(t, rec.Body.String(), "FORBIDDEN")
+}
+
 func TestRecommendScoreUpdateRejectsAuthor(t *testing.T) {
 	handler, tokens := testHandler(t)
 	token, err := tokens.Issue(identityentity.User{ID: 1, Username: "reader", Role: shared.RoleUser})
@@ -188,8 +228,10 @@ func testHandler(t *testing.T) (http.Handler, *jwt.Manager) {
 	bookCommands := bookapp.NewCommands(fakeBookRepo{}, fakeCategoryRepo{})
 	categoryQueries := categoryapp.NewQueries(fakeCategoryRepo{})
 	categoryCommands := categoryapp.NewCommands(fakeCategoryRepo{})
+	siteQueries := siteapp.NewQueries(fakeSiteRepo{})
+	siteCommands := siteapp.NewCommands(fakeSiteRepo{}, fakeFileStore{})
 	uploadSvc := uploadapp.NewService(fakeBookRepo{}, fakeCategoryRepo{}, fakeUploadRepo{}, fakeFileStore{}, fakeFileStore{}, fakeParser{})
-	h := New(identityQueries, identityCommands, bookQueries, bookCommands, categoryQueries, categoryCommands, uploadSvc, tokens, 1024, t.TempDir(), "")
+	h := New(identityQueries, identityCommands, bookQueries, bookCommands, categoryQueries, categoryCommands, siteQueries, siteCommands, uploadSvc, tokens, 1024, 1024, t.TempDir(), t.TempDir(), "")
 	return h.Routes(), tokens
 }
 
@@ -329,8 +371,29 @@ func (fakeFileStore) SaveCover(string, io.Reader) (uploadapp.SavedFile, error) {
 	return uploadapp.SavedFile{RelativePath: "cover.png"}, nil
 }
 
+func (fakeFileStore) SaveSiteIcon(string, io.Reader) (sitecommand.SavedIcon, error) {
+	return sitecommand.SavedIcon{RelativePath: "site-icon.svg"}, nil
+}
+
 type fakeParser struct{}
 
 func (fakeParser) ParseChapters(string) ([]bookentity.ChapterDraft, error) {
 	return []bookentity.ChapterDraft{{Index: 1, Title: "第一章", Content: "内容"}}, nil
+}
+
+type fakeSiteRepo struct{}
+
+func (fakeSiteRepo) GetSettings(context.Context) (siteentity.Settings, error) {
+	return siteentity.Settings{
+		ID:              1,
+		BrandName:       "阅卷书屋",
+		BrandSubtitle:   "Local Reading Archive",
+		HeroEyebrow:     "发现好故事",
+		HeroTitle:       "一站式书屋",
+		HeroDescription: "描述",
+	}, nil
+}
+
+func (fakeSiteRepo) UpsertSettings(_ context.Context, item siteentity.Settings) (siteentity.Settings, error) {
+	return item, nil
 }

@@ -158,6 +158,36 @@
 }
 ```
 
+### GET /api/site-settings
+
+认证：
+
+- 公开可读。
+
+响应：
+
+```json
+{
+  "brandName": "阅卷书屋",
+  "brandSubtitle": "Local Reading Archive",
+  "brandIconUrl": "/api/site-settings/icon",
+  "heroEyebrow": "发现好故事",
+  "heroTitle": "一站式书屋",
+  "heroDescription": "搜索、筛选、查看目录、登录后按章节阅读，也可以上传和维护你自己的 txt 小说。"
+}
+```
+
+### GET /api/site-settings/icon
+
+认证：
+
+- 公开可读。
+
+响应：
+
+- 返回当前站点图标文件。
+- 当管理员尚未上传图标时，返回系统默认图标（HTTP 200）。
+
 ### GET /api/books/search
 
 查询参数：
@@ -687,6 +717,44 @@
   "deleted": true
 }
 ```
+
+### PATCH /api/admin/site-settings
+
+认证：
+
+- 需要管理员角色。
+
+请求：
+
+```json
+{
+  "brandName": "阅卷书屋",
+  "brandSubtitle": "Local Reading Archive",
+  "heroEyebrow": "发现好故事",
+  "heroTitle": "一站式书屋",
+  "heroDescription": "搜索、筛选、查看目录、登录后按章节阅读，也可以上传和维护你自己的 txt 小说。"
+}
+```
+
+响应：
+
+- 返回完整站点设置对象（同 `GET /api/site-settings`）。
+
+### POST /api/admin/site-settings/icon
+
+认证：
+
+- 需要管理员角色。
+
+请求：
+
+- `multipart/form-data`
+- 字段：
+  - `file`：必填，支持 `jpg` / `jpeg` / `png` / `webp` / `svg`
+
+响应：
+
+- 返回完整站点设置对象（同 `GET /api/site-settings`）。
 
 若分类已被书籍使用，返回 `CONFLICT`。
 

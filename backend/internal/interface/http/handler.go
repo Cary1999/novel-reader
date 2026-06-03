@@ -18,9 +18,12 @@ import (
 	categorycommand "novel-reader/backend/internal/application/category/command"
 	identityapp "novel-reader/backend/internal/application/identity"
 	identitycommand "novel-reader/backend/internal/application/identity/command"
+	siteapp "novel-reader/backend/internal/application/site"
+	sitecommand "novel-reader/backend/internal/application/site/command"
 	uploadapp "novel-reader/backend/internal/application/upload"
 	identityentity "novel-reader/backend/internal/domain/identity/entity"
 	"novel-reader/backend/internal/domain/shared"
+	siteentity "novel-reader/backend/internal/domain/site/entity"
 	"novel-reader/backend/internal/infrastructure/auth/jwt"
 )
 
@@ -31,10 +34,14 @@ type Handler struct {
 	bookCommands     *bookapp.Commands
 	categoryQueries  *categoryapp.Queries
 	categoryCommands *categoryapp.Commands
+	siteQueries      *siteapp.Queries
+	siteCommands     *siteapp.Commands
 	uploadSvc        *uploadapp.Service
 	tokens           *jwt.Manager
 	maxUploadBytes   int64
+	maxIconBytes     int64
 	coverDir         string
+	siteIconDir      string
 	defaultCover     string
 }
 
@@ -42,7 +49,7 @@ type contextKey string
 
 const actorKey contextKey = "actor"
 
-func New(identityQueries *identityapp.Queries, identityCommands *identityapp.Commands, bookQueries *bookapp.Queries, bookCommands *bookapp.Commands, categoryQueries *categoryapp.Queries, categoryCommands *categoryapp.Commands, uploadSvc *uploadapp.Service, tokens *jwt.Manager, maxUploadBytes int64, coverDir string, defaultCover string) *Handler {
+func New(identityQueries *identityapp.Queries, identityCommands *identityapp.Commands, bookQueries *bookapp.Queries, bookCommands *bookapp.Commands, categoryQueries *categoryapp.Queries, categoryCommands *categoryapp.Commands, siteQueries *siteapp.Queries, siteCommands *siteapp.Commands, uploadSvc *uploadapp.Service, tokens *jwt.Manager, maxUploadBytes int64, maxIconBytes int64, coverDir string, siteIconDir string, defaultCover string) *Handler {
 	return &Handler{
 		identityQueries:  identityQueries,
 		identityCommands: identityCommands,
@@ -50,10 +57,14 @@ func New(identityQueries *identityapp.Queries, identityCommands *identityapp.Com
 		bookCommands:     bookCommands,
 		categoryQueries:  categoryQueries,
 		categoryCommands: categoryCommands,
+		siteQueries:      siteQueries,
+		siteCommands:     siteCommands,
 		uploadSvc:        uploadSvc,
 		tokens:           tokens,
 		maxUploadBytes:   maxUploadBytes,
+		maxIconBytes:     maxIconBytes,
 		coverDir:         coverDir,
+		siteIconDir:      siteIconDir,
 		defaultCover:     strings.TrimSpace(defaultCover),
 	}
 }
@@ -69,6 +80,8 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("PATCH /api/auth/me", h.requireAuth(h.UpdateMe))
 	mux.HandleFunc("PATCH /api/auth/password", h.requireAuth(h.ChangePassword))
 	mux.HandleFunc("GET /api/categories", h.Categories)
+	mux.HandleFunc("GET /api/site-settings", h.SiteSettings)
+	mux.HandleFunc("GET /api/site-settings/icon", h.SiteIcon)
 	mux.HandleFunc("GET /api/books/search", h.SearchBooks)
 	mux.HandleFunc("GET /api/books/recommendations", h.Recommendations)
 	mux.HandleFunc("GET /api/books/{bookId}", h.BookDetail)
@@ -87,6 +100,8 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("POST /api/admin/categories", h.requireAuth(h.requireAdmin(h.CreateCategory)))
 	mux.HandleFunc("PATCH /api/admin/categories/{categoryId}", h.requireAuth(h.requireAdmin(h.UpdateCategory)))
 	mux.HandleFunc("DELETE /api/admin/categories/{categoryId}", h.requireAuth(h.requireAdmin(h.DeleteCategory)))
+	mux.HandleFunc("PATCH /api/admin/site-settings", h.requireAuth(h.requireAdmin(h.UpdateSiteSettings)))
+	mux.HandleFunc("POST /api/admin/site-settings/icon", h.requireAuth(h.requireAdmin(h.UploadSiteIcon)))
 	mux.HandleFunc("GET /api/admin/books", h.requireAuth(h.requireAdmin(h.AdminBooks)))
 	mux.HandleFunc("POST /api/admin/books", h.requireAuth(h.requireAdmin(h.CreateMyBook)))
 	mux.HandleFunc("POST /api/admin/books/upload", h.requireAuth(h.requireAdmin(h.UploadBook)))
@@ -194,6 +209,15 @@ func (h *Handler) Categories(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+func (h *Handler) SiteSettings(w http.ResponseWriter, r *http.Request) {
+	item, err := h.siteQueries.GetSettings.Handle(r.Context())
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, publicSiteSettings(item))
 }
 
 func (h *Handler) SearchBooks(w http.ResponseWriter, r *http.Request) {
@@ -323,7 +347,7 @@ func (h *Handler) BookCover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", coverContentTypeByExt(*item.CoverPath))
+	w.Header().Set("Content-Type", imageContentTypeByExt(*item.CoverPath))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)
 }
@@ -549,6 +573,62 @@ func (h *Handler) DeleteCategory(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"deleted": true})
 }
 
+func (h *Handler) UpdateSiteSettings(w http.ResponseWriter, r *http.Request) {
+	var req sitecommand.UpdateSettings
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	item, err := h.siteCommands.UpdateSettings.Handle(r.Context(), mustActor(r), req)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, publicSiteSettings(item))
+}
+
+func (h *Handler) UploadSiteIcon(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, h.maxIconBytes+1024*1024)
+	if err := r.ParseMultipartForm(h.maxIconBytes + 1024*1024); err != nil {
+		writeError(w, shared.NewError(http.StatusBadRequest, "BAD_REQUEST", "invalid multipart upload"))
+		return
+	}
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		writeError(w, shared.NewError(http.StatusBadRequest, "BAD_REQUEST", "file is required"))
+		return
+	}
+	defer file.Close()
+
+	item, err := h.siteCommands.UpdateIcon.Handle(r.Context(), mustActor(r), header.Filename, file)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, publicSiteSettings(item))
+}
+
+func (h *Handler) SiteIcon(w http.ResponseWriter, r *http.Request) {
+	item, err := h.siteQueries.GetSettings.Handle(r.Context())
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if item.BrandIconPath == nil || strings.TrimSpace(*item.BrandIconPath) == "" {
+		h.writeDefaultSiteIcon(w)
+		return
+	}
+
+	fullPath := filepath.Join(h.siteIconDir, *item.BrandIconPath)
+	data, err := os.ReadFile(fullPath)
+	if err != nil {
+		h.writeDefaultSiteIcon(w)
+		return
+	}
+	w.Header().Set("Content-Type", imageContentTypeByExt(*item.BrandIconPath))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
+}
+
 func (h *Handler) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		raw, err := jwt.BearerToken(r.Header.Get("Authorization"))
@@ -625,6 +705,14 @@ func publicUser(user identityentity.User) map[string]any {
 	return map[string]any{"id": user.ID, "username": user.Username, "nickname": user.Nickname, "role": user.Role}
 }
 
+func publicSiteSettings(item siteentity.Settings) siteentity.Settings {
+	item.BrandIconURL = "/api/site-settings/icon"
+	if !item.UpdatedAt.IsZero() {
+		item.BrandIconURL += "?v=" + strconv.FormatInt(item.UpdatedAt.UnixMilli(), 10)
+	}
+	return item
+}
+
 func mustActor(r *http.Request) shared.Actor {
 	actor, _ := r.Context().Value(actorKey).(shared.Actor)
 	return actor
@@ -661,7 +749,7 @@ func parseInt64(raw string, fallback int64) int64 {
 	return value
 }
 
-func coverContentTypeByExt(path string) string {
+func imageContentTypeByExt(path string) string {
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".jpg", ".jpeg":
 		return "image/jpeg"
@@ -669,6 +757,8 @@ func coverContentTypeByExt(path string) string {
 		return "image/png"
 	case ".webp":
 		return "image/webp"
+	case ".svg":
+		return "image/svg+xml"
 	default:
 		return "application/octet-stream"
 	}
@@ -682,7 +772,7 @@ func (h *Handler) writeDefaultCover(w http.ResponseWriter) {
 		}
 		data, err := os.ReadFile(path)
 		if err == nil {
-			w.Header().Set("Content-Type", coverContentTypeByExt(path))
+			w.Header().Set("Content-Type", imageContentTypeByExt(path))
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write(data)
 			return
@@ -697,4 +787,11 @@ func (h *Handler) writeDefaultCover(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "image/png")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)
+}
+
+func (h *Handler) writeDefaultSiteIcon(w http.ResponseWriter) {
+	const iconSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="site icon"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#f07a3a"/><stop offset="100%" stop-color="#b94a1a"/></linearGradient></defs><rect width="64" height="64" rx="18" fill="url(#g)"/><path d="M22 18h8c2.7 0 4.9 1 6 2.3 1.1-1.4 3.3-2.3 6-2.3h8a2 2 0 0 1 2 2v24a2 2 0 0 1-2 2h-8c-2.7 0-4.9 1-6 2.3-1.1-1.4-3.3-2.3-6-2.3h-8a2 2 0 0 1-2-2V20a2 2 0 0 1 2-2Zm2 4v20h6c2.3 0 4.3.6 6 1.8V23.8c-1.7-1.2-3.7-1.8-6-1.8Zm16 0c-2.3 0-4.3.6-6 1.8v20c1.7-1.2 3.7-1.8 6-1.8h6V22Z" fill="#fff"/></svg>`
+	w.Header().Set("Content-Type", "image/svg+xml")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(iconSVG))
 }

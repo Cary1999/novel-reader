@@ -2,8 +2,9 @@ import { LibraryBig, Tags } from "lucide-react";
 import { useState } from "react";
 import { AdminBooksPage } from "./AdminBooksPage";
 import { AdminCategoriesPage } from "./AdminCategoriesPage";
+import { AdminSiteSettingsPage } from "./AdminSiteSettingsPage";
 
-type TabKey = "books" | "categories";
+type TabKey = "books" | "categories" | "settings";
 
 export function AdminDashboardPage() {
   const [tab, setTab] = useState<TabKey>("books");
@@ -35,9 +36,19 @@ export function AdminDashboardPage() {
           <Tags size={16} aria-hidden="true" />
           分类治理
         </button>
+        <button
+          type="button"
+          className={`tab-button ${tab === "settings" ? "active" : ""}`}
+          onClick={() => setTab("settings")}
+        >
+          <LibraryBig size={16} aria-hidden="true" />
+          系统设置
+        </button>
       </div>
 
-      {tab === "books" ? <AdminBooksPage embedded /> : <AdminCategoriesPage />}
+      {tab === "books" ? <AdminBooksPage embedded /> : null}
+      {tab === "categories" ? <AdminCategoriesPage /> : null}
+      {tab === "settings" ? <AdminSiteSettingsPage /> : null}
     </main>
   );
 }

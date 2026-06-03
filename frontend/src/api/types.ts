@@ -28,6 +28,16 @@ export interface Category {
   name: string;
 }
 
+export interface SiteSettings {
+  id?: number;
+  brandName: string;
+  brandSubtitle: string;
+  brandIconUrl: string;
+  heroEyebrow: string;
+  heroTitle: string;
+  heroDescription: string;
+}
+
 export interface BookSummary {
   id: number;
   title: string;
@@ -109,4 +119,12 @@ export interface CreateBookInput {
 export interface ChapterInput {
   title: string;
   content: string;
+}
+
+export interface SiteSettingsInput {
+  brandName: string;
+  brandSubtitle: string;
+  heroEyebrow: string;
+  heroTitle: string;
+  heroDescription: string;
 }

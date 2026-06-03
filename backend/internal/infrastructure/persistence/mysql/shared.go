@@ -44,6 +44,24 @@ func ensureColumn(ctx context.Context, db *sql.DB, tableName, columnName, alterS
 	return nil
 }
 
+func ensureColumnAlter(ctx context.Context, db *sql.DB, tableName, columnName, alterSQL string) error {
+	var count int
+	if err := db.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM information_schema.COLUMNS
+		WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?
+	`, tableName, columnName).Scan(&count); err != nil {
+		return err
+	}
+	if count == 0 {
+		return nil
+	}
+	if _, err := db.ExecContext(ctx, alterSQL); err != nil {
+		return fmt.Errorf("alter %s modify %s: %w", tableName, columnName, err)
+	}
+	return nil
+}
+
 func ensureIndex(ctx context.Context, db *sql.DB, tableName, indexName, alterSQL string) error {
 	var count int
 	if err := db.QueryRowContext(ctx, `

@@ -6,11 +6,13 @@ import type { BookSummary, Category } from "../api/types";
 import { BookCard } from "../components/BookCard";
 import { EmptyState, ErrorState, LoadingState } from "../components/StateViews";
 import { SearchForm } from "../components/SearchForm";
+import { useSiteSettings } from "../site/SiteSettingsContext";
 
 const INLINE_LIMIT = 8;
 
 export function HomePage() {
   const navigate = useNavigate();
+  const { settings } = useSiteSettings();
   const [categories, setCategories] = useState<Category[]>([]);
   const [books, setBooks] = useState<BookSummary[]>([]);
   const [recommendations, setRecommendations] = useState<BookSummary[]>([]);
@@ -71,9 +73,9 @@ export function HomePage() {
       <section className="discover-hero">
         <div className="shell hero-inner">
           <div className="hero-copy-block">
-            <p className="eyebrow">发现好故事</p>
-            <h1>像私人书房一样读书</h1>
-            <p className="hero-copy">搜索、筛选、查看目录、登录后按章节阅读，也可以上传和维护你自己的 txt 小说。</p>
+            <p className="eyebrow">{settings.heroEyebrow}</p>
+            <h1>{settings.heroTitle}</h1>
+            <p className="hero-copy">{settings.heroDescription}</p>
             <div className="hero-stats">
               <div>
                 <strong>{categories.length}</strong>

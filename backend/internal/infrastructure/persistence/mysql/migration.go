@@ -32,5 +32,11 @@ func migrate(ctx context.Context, db *sql.DB) error {
 	if err := ensureIndex(ctx, db, "books", "idx_books_recommend_score", `ALTER TABLE books ADD INDEX idx_books_recommend_score (recommend_score)`); err != nil {
 		return err
 	}
+	if err := ensureColumnAlter(ctx, db, "site_settings", "top_line_title", `ALTER TABLE site_settings MODIFY COLUMN top_line_title VARCHAR(120) NOT NULL DEFAULT ''`); err != nil {
+		return err
+	}
+	if err := ensureColumnAlter(ctx, db, "site_settings", "top_line_tagline", `ALTER TABLE site_settings MODIFY COLUMN top_line_tagline VARCHAR(255) NOT NULL DEFAULT ''`); err != nil {
+		return err
+	}
 	return nil
 }

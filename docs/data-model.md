@@ -38,6 +38,29 @@
 
 - `name` 唯一。
 
+### site_settings
+
+用途：保存全站品牌文案和站点图标引用。
+
+字段：
+
+- `id`：主键，固定单例行。
+- `brand_name`：品牌主名称。
+- `brand_subtitle`：品牌副标题。
+- `brand_icon_path`：站点图标相对路径，可为空。
+- `hero_eyebrow`：首页 Hero 眉标题。
+- `hero_title`：首页 Hero 主标题。
+- `hero_description`：首页 Hero 描述小字。
+- `updated_by_user_id`：最近更新管理员 ID，可为空。
+- `created_at`：创建时间。
+- `updated_at`：更新时间。
+
+约束：
+
+- 全站只维护一份有效站点设置。
+- 文案字段由服务端校验长度和必填。
+- `brand_icon_path` 由服务端生成，不接受客户端直接写入绝对路径。
+
 ### books
 
 用途：保存小说元数据。

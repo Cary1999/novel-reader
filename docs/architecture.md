@@ -19,6 +19,13 @@
 
 本轮重构仅调整后端内部结构，不主动改变既有 HTTP API、数据库行为和 MVP 功能范围。
 
+后续凡是涉及后端的新需求、Bug 修复或重构，都必须先做 DDD 影响评估，再进入实现：
+
+- 它属于哪个顶层领域，还是只是现有领域内的一个用例。
+- 它应落在 `interface`、`application`、`domain` 还是 `infrastructure`。
+- 它是否引入新的仓储契约、事务边界、跨领域编排或基础设施适配器。
+- 如果现有文档无法清晰回答以上问题，应先更新 Harness 或决策记录。
+
 ## 高层组件
 
 ### Web 前端
@@ -78,6 +85,7 @@
 - `book`：书籍、章节、作品归属、阅读元数据。
 - `category`：分类治理和分类可用性约束。
 - `upload`：文件上传、封面上传、上传记录、上传状态。
+- `site`：站点品牌设置、首页品牌文案和站点图标引用。
 
 说明：
 
@@ -125,6 +133,7 @@
 - `book/book-management`
 - `book/chapter-management`
 - `category/category-management`
+- `site/site-settings`
 - `upload/upload-import`
 - `upload/cover-upload`
 
@@ -147,6 +156,7 @@
 - `identity`：用户名唯一，密码只保存哈希。
 - `book`：章节必须从属于书；章节变更后要保持 `chapter_count` 和 `latest_chapter_title` 一致。
 - `category`：分类名唯一，已被书籍使用的分类不可删除。
+- `site`：站点设置始终按单例维护，图标引用由服务端控制。
 - `upload`：上传路径由服务端生成，状态只能按允许的生命周期流转。
 
 约束：
@@ -222,6 +232,10 @@ novel-reader/
           application.go
           command/
           query/
+        site/
+          application.go
+          command/
+          query/
         upload/
           query/
       domain/
@@ -235,6 +249,10 @@ novel-reader/
           repository/
           service/
         category/
+          entity/
+          repository/
+          service/
+        site/
           entity/
           repository/
           service/

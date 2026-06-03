@@ -9,6 +9,29 @@
 - 领域模型与数据库模型分离。
 - 同类代码放在一起，便于维护和扩展。
 
+同时，本文件不只是描述“当前结构”，也是后续所有后端需求进入实现前的检查基线。
+
+## 后端需求进入前的必答清单
+
+凡是需求、Bug、重构或运维调整涉及后端，都必须先回答：
+
+1. 这是哪个 domain 的能力变化。
+2. 这是新用例、现有用例扩展，还是基础设施适配变化。
+3. 代码应该落在哪一层：
+   - `interface`
+   - `application`
+   - `domain`
+   - `infrastructure`
+4. 是否需要新增或调整：
+   - 领域实体
+   - 仓储契约
+   - domain service / policy
+   - application command/query handler
+   - MySQL model / repo / migration
+5. 是否存在跨领域协作；如果有，是否仍应由 application 层同步编排。
+
+如果这些问题没有答案，就不应直接开始写后端实现。
+
 ## 当前分层
 
 后端固定分为四层：
@@ -126,6 +149,7 @@ MySQL 相关约定：
 - `identity`
 - `book`
 - `category`
+- `site`
 - `upload`
 
 说明：
@@ -153,6 +177,10 @@ backend/internal/
       application.go
       command/
       query/
+    site/
+      application.go
+      command/
+      query/
     upload/
       service.go
       query/
@@ -166,6 +194,10 @@ backend/internal/
       repository/
       service/
     category/
+      entity/
+      repository/
+      service/
+    site/
       entity/
       repository/
       service/
@@ -248,6 +280,17 @@ backend/internal/
 
 - `list categories`
 
+### site
+
+`command`：
+
+- `update site settings`
+- `update site icon`
+
+`query`：
+
+- `get site settings`
+
 ### upload
 
 当前仍是较小的应用服务：
@@ -321,3 +364,4 @@ backend/internal/
 - 当某个领域出现更多“依赖已有状态的复杂规则”时，继续从 application 收回到 domain policy 或 domain behavior。
 - 当某个 application 目录再次出现“大 handler / 大 service”时，继续按单用例拆分。
 - 当跨领域异步需求出现时，再评估是否引入进程内领域事件或外部 bus。
+- 当新需求无法自然落入现有 DDD 约束时，先补 Harness 或决策记录，再动代码，而不是先实现后解释。

@@ -542,32 +542,6 @@ h3 {
   line-height: 1.95;
 }
 
-.hero-stats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 28px;
-}
-
-.hero-stats div {
-  padding: 16px 16px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.hero-stats strong {
-  display: block;
-  margin-bottom: 6px;
-  font-size: 1.35rem;
-  color: #fffdf9;
-}
-
-.hero-stats span {
-  color: rgba(255, 243, 228, 0.72);
-  font-size: 0.9rem;
-}
-
 .hero-search {
   align-self: center;
   display: grid;
@@ -2002,10 +1976,6 @@ textarea:focus {
   .admin-editor,
   .upload-summary {
     padding: 18px;
-  }
-
-  .hero-stats {
-    grid-template-columns: 1fr;
   }
 
   .book-card {

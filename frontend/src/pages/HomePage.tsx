@@ -76,20 +76,6 @@ export function HomePage() {
             <p className="eyebrow">{settings.heroEyebrow}</p>
             <h1>{settings.heroTitle}</h1>
             <p className="hero-copy">{settings.heroDescription}</p>
-            <div className="hero-stats">
-              <div>
-                <strong>{categories.length}</strong>
-                <span>已收录分类</span>
-              </div>
-              <div>
-                <strong>{books.length}</strong>
-                <span>首页展示新书</span>
-              </div>
-              <div>
-                <strong>{rankedBooks.length}</strong>
-                <span>当前榜单条目</span>
-              </div>
-            </div>
           </div>
         </div>
       </section>

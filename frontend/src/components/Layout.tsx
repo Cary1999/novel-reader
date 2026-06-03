@@ -54,8 +54,8 @@ export function Layout() {
       <Outlet />
       <footer className="site-footer">
         <div className="shell site-footer-inner">
-          <span>阅卷书屋 · 本地小说阅读 MVP</span>
-          <span>仅使用公开接口与本地上传内容，不复制第三方品牌与视觉资产</span>
+          <span>本地小说阅读</span>
+          <span>仅使用公开接口与本地上传内容</span>
         </div>
       </footer>
     </div>

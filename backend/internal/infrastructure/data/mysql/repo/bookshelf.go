@@ -15,8 +15,6 @@ import (
 	"novel-reader/backend/internal/infrastructure/data/mysql/model"
 )
 
-const defaultBookshelfGroupName = "默认书架"
-
 type BookshelfRepository struct {
 	db *gorm.DB
 }
@@ -27,30 +25,6 @@ func NewBookshelfRepository(db *gorm.DB) BookshelfRepository {
 	return BookshelfRepository{db: db}
 }
 
-func (r BookshelfRepository) EnsureDefaultGroup(ctx context.Context, userID int64) (bookshelfentity.Group, error) {
-	var record model.BookshelfGroup
-	err := r.db.WithContext(ctx).
-		Where("user_id = ? AND is_default = 1", userID).
-		Order("id ASC").
-		Take(&record).Error
-	if err == nil {
-		return toBookshelfGroup(record), nil
-	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return bookshelfentity.Group{}, mapGormNotFound(err)
-	}
-	record = model.BookshelfGroup{
-		UserID:    userID,
-		Name:      defaultBookshelfGroupName,
-		SortOrder: 0,
-		IsDefault: true,
-	}
-	if err := r.db.WithContext(ctx).Create(&record).Error; err != nil {
-		return bookshelfentity.Group{}, err
-	}
-	return toBookshelfGroup(record), nil
-}
-
 func (r BookshelfRepository) ListGroups(ctx context.Context, userID int64) ([]bookshelfentity.Group, error) {
 	type groupRow struct {
 		model.BookshelfGroup
@@ -59,11 +33,11 @@ func (r BookshelfRepository) ListGroups(ctx context.Context, userID int64) ([]bo
 	var rows []groupRow
 	if err := r.db.WithContext(ctx).
 		Table("bookshelf_groups g").
-		Select("g.id, g.user_id, g.name, g.sort_order, g.is_default, g.created_at, g.updated_at, COUNT(i.id) AS item_count").
+		Select("g.id, g.user_id, g.name, g.sort_order, g.is_pinned, g.pinned_at, g.created_at, g.updated_at, COUNT(i.id) AS item_count").
 		Joins("LEFT JOIN bookshelf_items i ON i.group_id = g.id").
 		Where("g.user_id = ?", userID).
-		Group("g.id, g.user_id, g.name, g.sort_order, g.is_default, g.created_at, g.updated_at").
-		Order("g.sort_order ASC, g.id ASC").
+		Group("g.id, g.user_id, g.name, g.sort_order, g.is_pinned, g.pinned_at, g.created_at, g.updated_at").
+		Order("g.is_pinned DESC, COALESCE(g.pinned_at, g.created_at) DESC, g.sort_order ASC, g.id ASC").
 		Scan(&rows).Error; err != nil {
 		return nil, err
 	}
@@ -74,6 +48,10 @@ func (r BookshelfRepository) ListGroups(ctx context.Context, userID int64) ([]bo
 		items = append(items, item)
 	}
 	return items, nil
+}
+
+func (r BookshelfRepository) FindGroup(ctx context.Context, userID, groupID int64) (bookshelfentity.Group, error) {
+	return r.findGroup(ctx, userID, groupID)
 }
 
 func (r BookshelfRepository) CreateGroup(ctx context.Context, userID int64, name string) (bookshelfentity.Group, error) {
@@ -87,7 +65,7 @@ func (r BookshelfRepository) CreateGroup(ctx context.Context, userID int64, name
 			UserID:    userID,
 			Name:      name,
 			SortOrder: int(maxSort.Int64) + 1,
-			IsDefault: false,
+			IsPinned:  false,
 		}
 		return tx.Create(&created).Error
 	}); err != nil {
@@ -114,25 +92,32 @@ func (r BookshelfRepository) ReorderGroup(ctx context.Context, userID, groupID i
 	return r.findGroup(ctx, userID, groupID)
 }
 
+func (r BookshelfRepository) UpdateGroupPin(ctx context.Context, userID, groupID int64, pinned bool) (bookshelfentity.Group, error) {
+	updates := map[string]any{"is_pinned": pinned}
+	if pinned {
+		now := time.Now().UTC()
+		updates["pinned_at"] = &now
+	} else {
+		updates["pinned_at"] = nil
+	}
+	if err := r.db.WithContext(ctx).Model(&model.BookshelfGroup{}).
+		Where("id = ? AND user_id = ?", groupID, userID).
+		Updates(updates).Error; err != nil {
+		return bookshelfentity.Group{}, err
+	}
+	return r.findGroup(ctx, userID, groupID)
+}
+
 func (r BookshelfRepository) DeleteGroup(ctx context.Context, userID, groupID int64) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var group model.BookshelfGroup
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("id = ? AND user_id = ?", groupID, userID).
-			Take(&group).Error; err != nil {
+			Take(&model.BookshelfGroup{}).Error; err != nil {
 			return mapGormNotFound(err)
-		}
-		if group.IsDefault {
-			return shared.NewError(httpStatusBadRequest(), "BAD_REQUEST", "default group cannot be deleted")
-		}
-
-		defaultGroup, err := ensureDefaultGroupTx(ctx, tx, userID)
-		if err != nil {
-			return err
 		}
 		if err := tx.Model(&model.BookshelfItem{}).
 			Where("user_id = ? AND group_id = ?", userID, groupID).
-			Update("group_id", defaultGroup.ID).Error; err != nil {
+			Update("group_id", nil).Error; err != nil {
 			return err
 		}
 		return tx.Delete(&model.BookshelfGroup{}, groupID).Error
@@ -165,8 +150,13 @@ func (r BookshelfRepository) ListEntries(ctx context.Context, userID int64, grou
 
 func (r BookshelfRepository) FindEntryByBookID(ctx context.Context, userID, bookID int64) (bookshelfentity.Entry, error) {
 	var row bookshelfEntryRecord
-	err := r.entryQuery(ctx, userID, nil).
-		Where("bi.book_id = ?", bookID).
+	err := r.db.WithContext(ctx).
+		Table("bookshelf_items bi").
+		Joins("LEFT JOIN bookshelf_groups g ON g.id = bi.group_id").
+		Joins("LEFT JOIN users u ON u.id = bi.user_id").
+		Joins("LEFT JOIN books b ON b.id = bi.book_id").
+		Joins("LEFT JOIN categories c ON c.id = b.category_id").
+		Where("bi.user_id = ? AND bi.book_id = ?", userID, bookID).
 		Select(entrySelectColumns()).
 		Take(&row).Error
 	if err != nil {
@@ -178,7 +168,7 @@ func (r BookshelfRepository) FindEntryByBookID(ctx context.Context, userID, book
 func (r BookshelfRepository) AddBook(ctx context.Context, userID, bookID int64, groupID *int64) (bookshelfentity.Entry, error) {
 	var result bookshelfentity.Entry
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		targetGroup, err := r.ensureGroupTx(ctx, tx, userID, groupID)
+		targetGroupID, err := r.ensureGroupIDTx(ctx, tx, userID, groupID)
 		if err != nil {
 			return err
 		}
@@ -193,17 +183,17 @@ func (r BookshelfRepository) AddBook(ctx context.Context, userID, bookID int64, 
 				return mapGormNotFound(err)
 			}
 			item = model.BookshelfItem{
-				UserID:    userID,
-				BookID:    bookID,
-				GroupID:   targetGroup.ID,
-				IsPinned:  false,
-				PinnedAt:  nil,
+				UserID:   userID,
+				BookID:   bookID,
+				GroupID:  targetGroupID,
+				IsPinned: false,
+				PinnedAt: nil,
 			}
 			if err := tx.Create(&item).Error; err != nil {
 				return err
 			}
 		} else {
-			item.GroupID = targetGroup.ID
+			item.GroupID = targetGroupID
 			if err := tx.Save(&item).Error; err != nil {
 				return err
 			}
@@ -228,11 +218,11 @@ func (r BookshelfRepository) UpdateBook(ctx context.Context, userID, bookID int6
 			return mapGormNotFound(err)
 		}
 		if groupID != nil {
-			targetGroup, err := r.ensureGroupTx(ctx, tx, userID, groupID)
+			targetGroupID, err := r.ensureGroupIDTx(ctx, tx, userID, groupID)
 			if err != nil {
 				return err
 			}
-			item.GroupID = targetGroup.ID
+			item.GroupID = targetGroupID
 		}
 		if pinned != nil {
 			item.IsPinned = *pinned
@@ -273,12 +263,16 @@ func (r BookshelfRepository) BatchManage(ctx context.Context, userID int64, book
 	}
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var targetGroupID int64
+		var targetGroupRef *int64
 		if action == "move" {
-			targetGroup, err := r.ensureGroupTx(ctx, tx, userID, groupID)
+			targetGroup, err := r.ensureGroupIDTx(ctx, tx, userID, groupID)
 			if err != nil {
 				return err
 			}
-			targetGroupID = targetGroup.ID
+			if targetGroup != nil {
+				targetGroupID = *targetGroup
+				targetGroupRef = &targetGroupID
+			}
 		}
 
 		for _, bookID := range bookIDs {
@@ -286,7 +280,7 @@ func (r BookshelfRepository) BatchManage(ctx context.Context, userID int64, book
 			case "move":
 				if err := tx.Model(&model.BookshelfItem{}).
 					Where("user_id = ? AND book_id = ?", userID, bookID).
-					Updates(map[string]any{"group_id": targetGroupID}).Error; err != nil {
+					Updates(map[string]any{"group_id": targetGroupRef}).Error; err != nil {
 					return mapGormNotFound(err)
 				}
 			case "pin":
@@ -322,70 +316,52 @@ func (r BookshelfRepository) findGroup(ctx context.Context, userID, groupID int6
 	return toBookshelfGroup(record), nil
 }
 
-func (r BookshelfRepository) ensureGroupTx(ctx context.Context, tx *gorm.DB, userID int64, groupID *int64) (model.BookshelfGroup, error) {
-	if groupID == nil || *groupID <= 0 {
-		return ensureDefaultGroupTx(ctx, tx, userID)
+func (r BookshelfRepository) ensureGroupIDTx(ctx context.Context, tx *gorm.DB, userID int64, groupID *int64) (*int64, error) {
+	if groupID == nil || *groupID == 0 {
+		return nil, nil
 	}
 	var record model.BookshelfGroup
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 		Where("id = ? AND user_id = ?", *groupID, userID).
 		Take(&record).Error; err != nil {
-		return model.BookshelfGroup{}, mapGormNotFound(err)
+		return nil, mapGormNotFound(err)
 	}
-	return record, nil
-}
-
-func ensureDefaultGroupTx(ctx context.Context, tx *gorm.DB, userID int64) (model.BookshelfGroup, error) {
-	var record model.BookshelfGroup
-	if err := tx.Where("user_id = ? AND is_default = 1", userID).Order("id ASC").Take(&record).Error; err == nil {
-		return record, nil
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return model.BookshelfGroup{}, mapGormNotFound(err)
-	}
-	record = model.BookshelfGroup{
-		UserID:    userID,
-		Name:      defaultBookshelfGroupName,
-		SortOrder: 0,
-		IsDefault: true,
-	}
-	if err := tx.Create(&record).Error; err != nil {
-		return model.BookshelfGroup{}, err
-	}
-	return record, nil
+	return &record.ID, nil
 }
 
 func (r BookshelfRepository) entryQuery(ctx context.Context, userID int64, groupID *int64) *gorm.DB {
 	query := r.db.WithContext(ctx).
 		Table("bookshelf_items bi").
-		Joins("JOIN bookshelf_groups g ON g.id = bi.group_id").
+		Joins("LEFT JOIN bookshelf_groups g ON g.id = bi.group_id").
 		Joins("LEFT JOIN users u ON u.id = bi.user_id").
 		Joins("LEFT JOIN books b ON b.id = bi.book_id").
 		Joins("LEFT JOIN categories c ON c.id = b.category_id").
 		Where("bi.user_id = ?", userID)
 	if groupID != nil && *groupID > 0 {
 		query = query.Where("bi.group_id = ?", *groupID)
+	} else {
+		query = query.Where("bi.group_id IS NULL")
 	}
 	return query
 }
 
 type bookshelfEntryRecord struct {
-	ItemID    int64          `gorm:"column:item_id"`
-	UserID    int64          `gorm:"column:user_id"`
-	BookID    int64          `gorm:"column:book_id"`
-	GroupID   int64          `gorm:"column:group_id"`
-	GroupName string         `gorm:"column:group_name"`
-	IsDefault bool           `gorm:"column:is_default"`
-	IsPinned  bool           `gorm:"column:is_pinned"`
-	PinnedAt  *time.Time     `gorm:"column:pinned_at"`
-	CreatedAt time.Time      `gorm:"column:created_at"`
-	UpdatedAt time.Time      `gorm:"column:updated_at"`
-	BookCreatedAt time.Time  `gorm:"column:book_created_at"`
-	BookUpdatedAt time.Time  `gorm:"column:book_updated_at"`
-	BookModel model.Book     `gorm:"embedded"`
+	ItemID        int64         `gorm:"column:item_id"`
+	UserID        int64         `gorm:"column:user_id"`
+	BookID        int64         `gorm:"column:book_id"`
+	GroupID       sql.NullInt64 `gorm:"column:group_id"`
+	GroupName     string        `gorm:"column:group_name"`
+	IsPinned      bool          `gorm:"column:is_pinned"`
+	PinnedAt      *time.Time    `gorm:"column:pinned_at"`
+	CreatedAt     time.Time     `gorm:"column:created_at"`
+	UpdatedAt     time.Time     `gorm:"column:updated_at"`
+	BookCreatedAt time.Time     `gorm:"column:book_created_at"`
+	BookUpdatedAt time.Time     `gorm:"column:book_updated_at"`
+	BookModel     model.Book    `gorm:"embedded"`
 }
 
 func entrySelectColumns() string {
-	return `bi.id AS item_id, bi.user_id, bi.book_id, bi.group_id, g.name AS group_name, g.is_default,
+	return `bi.id AS item_id, bi.user_id, bi.book_id, bi.group_id, COALESCE(g.name, '') AS group_name,
 		bi.is_pinned, bi.pinned_at, bi.created_at, bi.updated_at,
 		b.id AS id, b.title AS title, ` + authorExprSQL() + ` AS author, b.owner_user_id, b.category_id,
 		COALESCE(c.name, '') AS category_name, b.description, b.chapter_count, b.latest_chapter_title,
@@ -393,7 +369,7 @@ func entrySelectColumns() string {
 }
 
 func entryOrderSQL() string {
-	return "g.sort_order ASC, g.id ASC, bi.is_pinned DESC, COALESCE(bi.pinned_at, bi.created_at) DESC, bi.created_at DESC, bi.id DESC"
+	return "bi.is_pinned DESC, COALESCE(bi.pinned_at, bi.created_at) DESC, bi.created_at DESC, bi.id DESC"
 }
 
 func toBookshelfGroup(record model.BookshelfGroup) bookshelfentity.Group {
@@ -402,7 +378,8 @@ func toBookshelfGroup(record model.BookshelfGroup) bookshelfentity.Group {
 		UserID:    record.UserID,
 		Name:      record.Name,
 		SortOrder: record.SortOrder,
-		IsDefault: record.IsDefault,
+		IsPinned:  record.IsPinned,
+		PinnedAt:  record.PinnedAt,
 		CreatedAt: record.CreatedAt,
 		UpdatedAt: record.UpdatedAt,
 	}
@@ -413,12 +390,14 @@ func toBookshelfEntry(record bookshelfEntryRecord) bookshelfentity.Entry {
 		ID:        record.ItemID,
 		UserID:    record.UserID,
 		BookID:    record.BookID,
-		GroupID:   record.GroupID,
 		GroupName: record.GroupName,
-		IsDefault: record.IsDefault,
 		IsPinned:  record.IsPinned,
 		CreatedAt: record.CreatedAt,
 		UpdatedAt: record.UpdatedAt,
+	}
+	if record.GroupID.Valid {
+		groupID := record.GroupID.Int64
+		item.GroupID = &groupID
 	}
 	bookItem := record.BookModel.ToEntity()
 	bookItem.ID = record.BookID
@@ -435,7 +414,7 @@ func (r BookshelfRepository) findEntryTx(ctx context.Context, tx *gorm.DB, userI
 	var row bookshelfEntryRecord
 	if err := tx.WithContext(ctx).
 		Table("bookshelf_items bi").
-		Joins("JOIN bookshelf_groups g ON g.id = bi.group_id").
+		Joins("LEFT JOIN bookshelf_groups g ON g.id = bi.group_id").
 		Joins("LEFT JOIN users u ON u.id = bi.user_id").
 		Joins("LEFT JOIN books b ON b.id = bi.book_id").
 		Joins("LEFT JOIN categories c ON c.id = b.category_id").

@@ -250,6 +250,10 @@ export const apiClient = {
     return frontRequest<BookshelfGroupListResponse>("/api/me/bookshelf/groups");
   },
 
+  bookshelfGroup(groupId: string | number) {
+    return frontRequest<BookshelfGroup>(`/api/me/bookshelf/groups/${groupId}`);
+  },
+
   createBookshelfGroup(input: BookshelfGroupInput) {
     return frontRequest<BookshelfGroup>("/api/me/bookshelf/groups", {
       method: "POST",

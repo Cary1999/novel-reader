@@ -7,11 +7,12 @@ import (
 )
 
 type Repository interface {
-	EnsureDefaultGroup(ctx context.Context, userID int64) (bookshelfentity.Group, error)
 	ListGroups(ctx context.Context, userID int64) ([]bookshelfentity.Group, error)
+	FindGroup(ctx context.Context, userID, groupID int64) (bookshelfentity.Group, error)
 	CreateGroup(ctx context.Context, userID int64, name string) (bookshelfentity.Group, error)
 	RenameGroup(ctx context.Context, userID, groupID int64, name string) (bookshelfentity.Group, error)
 	ReorderGroup(ctx context.Context, userID, groupID int64, sortOrder int) (bookshelfentity.Group, error)
+	UpdateGroupPin(ctx context.Context, userID, groupID int64, pinned bool) (bookshelfentity.Group, error)
 	DeleteGroup(ctx context.Context, userID, groupID int64) error
 	ListEntries(ctx context.Context, userID int64, groupID *int64, page, pageSize int) ([]bookshelfentity.Entry, int, error)
 	FindEntryByBookID(ctx context.Context, userID, bookID int64) (bookshelfentity.Entry, error)

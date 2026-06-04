@@ -233,7 +233,7 @@
 
 请求参数：
 
-- `groupId`：可选，书架分组 ID。
+- `groupId`：可选；传入分组 ID 时返回该分组内书籍，不传时返回书架首页中的未分组书籍。
 - `page`：可选，默认 `1`。
 - `pageSize`：可选，默认 `20`。
 
@@ -257,6 +257,10 @@
 }
 ```
 
+说明：
+
+- 不传 `groupId` 或传 `0` 时，书籍加入书架首页而不是某个默认分组。
+
 ### PATCH /api/me/bookshelf/{bookId}
 
 认证：
@@ -272,6 +276,10 @@
 }
 ```
 
+说明：
+
+- 传 `groupId: 0` 时可将书籍移回书架首页。
+
 ### DELETE /api/me/bookshelf/{bookId}
 
 认证：
@@ -279,6 +287,16 @@
 - 需要前台登录。
 
 ### GET /api/me/bookshelf/groups
+
+认证：
+
+- 需要前台登录。
+
+说明：
+
+- 仅返回用户创建的书架分组，不存在默认分组。
+
+### GET /api/me/bookshelf/groups/{groupId}
 
 认证：
 
@@ -312,6 +330,18 @@
   "sortOrder": 2
 }
 ```
+
+也支持：
+
+```json
+{
+  "pinned": true
+}
+```
+
+说明：
+
+- `pinned` 可用于分组置顶和取消置顶。
 
 ### DELETE /api/me/bookshelf/groups/{groupId}
 

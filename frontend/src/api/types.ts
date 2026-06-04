@@ -82,17 +82,19 @@ export interface BookshelfGroup {
   userId: number;
   name: string;
   sortOrder: number;
-  isDefault: boolean;
   itemCount?: number;
+  isPinned: boolean;
+  pinnedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface BookshelfEntry {
   id: number;
   userId: number;
   bookId: number;
-  groupId: number;
+  groupId?: number;
   groupName: string;
-  isDefault: boolean;
   isPinned: boolean;
   pinnedAt?: string;
   createdAt?: string;
@@ -148,8 +150,9 @@ export interface BookshelfEntryQueryParams {
 }
 
 export interface BookshelfGroupInput {
-  name: string;
+  name?: string;
   sortOrder?: number;
+  pinned?: boolean;
 }
 
 export interface BookshelfBookInput {

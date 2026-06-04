@@ -22,6 +22,10 @@ type ReorderGroup struct {
 	SortOrder int `json:"sortOrder"`
 }
 
+type PinGroup struct {
+	Pinned bool `json:"pinned"`
+}
+
 type AddBook struct {
 	GroupID *int64 `json:"groupId,omitempty"`
 }
@@ -94,6 +98,18 @@ func NewDeleteGroupHandler(repo bookshelfrepository.Repository) *DeleteGroupHand
 
 func (h *DeleteGroupHandler) Handle(ctx context.Context, actor shared.Actor, groupID int64) error {
 	return h.repo.DeleteGroup(ctx, actor.ActorID, groupID)
+}
+
+type PinGroupHandler struct {
+	repo bookshelfrepository.Repository
+}
+
+func NewPinGroupHandler(repo bookshelfrepository.Repository) *PinGroupHandler {
+	return &PinGroupHandler{repo: repo}
+}
+
+func (h *PinGroupHandler) Handle(ctx context.Context, actor shared.Actor, groupID int64, input PinGroup) (bookshelfentity.Group, error) {
+	return h.repo.UpdateGroupPin(ctx, actor.ActorID, groupID, input.Pinned)
 }
 
 type AddBookHandler struct {

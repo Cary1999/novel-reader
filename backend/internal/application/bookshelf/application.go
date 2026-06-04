@@ -6,9 +6,10 @@ import (
 )
 
 type Commands struct {
-	CreateGroup *CreateGroupHandler
-	RenameGroup *RenameGroupHandler
+	CreateGroup  *CreateGroupHandler
+	RenameGroup  *RenameGroupHandler
 	ReorderGroup *ReorderGroupHandler
+	PinGroup     *PinGroupHandler
 	DeleteGroup  *DeleteGroupHandler
 	AddBook      *AddBookHandler
 	UpdateBook   *UpdateBookHandler
@@ -17,6 +18,7 @@ type Commands struct {
 }
 
 type Queries struct {
+	FindGroup   *FindGroupHandler
 	ListGroups  *ListGroupsHandler
 	ListEntries *ListEntriesHandler
 	FindEntry   *FindEntryHandler
@@ -25,9 +27,10 @@ type Queries struct {
 func NewCommands(repo bookshelfrepository.Repository) *Commands {
 	service := bookshelfservice.NewService()
 	return &Commands{
-		CreateGroup: NewCreateGroupHandler(repo, service),
-		RenameGroup: NewRenameGroupHandler(repo, service),
+		CreateGroup:  NewCreateGroupHandler(repo, service),
+		RenameGroup:  NewRenameGroupHandler(repo, service),
 		ReorderGroup: NewReorderGroupHandler(repo, service),
+		PinGroup:     NewPinGroupHandler(repo),
 		DeleteGroup:  NewDeleteGroupHandler(repo),
 		AddBook:      NewAddBookHandler(repo),
 		UpdateBook:   NewUpdateBookHandler(repo),
@@ -39,6 +42,7 @@ func NewCommands(repo bookshelfrepository.Repository) *Commands {
 func NewQueries(repo bookshelfrepository.Repository) *Queries {
 	service := bookshelfservice.NewService()
 	return &Queries{
+		FindGroup:   NewFindGroupHandler(repo),
 		ListGroups:  NewListGroupsHandler(repo),
 		ListEntries: NewListEntriesHandler(repo, service),
 		FindEntry:   NewFindEntryHandler(repo),

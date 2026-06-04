@@ -1,6 +1,7 @@
 .DS_Store
 .env
 .codegraph
+.cache/
 
 # Local build outputs
 backend/data/

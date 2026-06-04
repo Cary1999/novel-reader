@@ -187,15 +187,17 @@
 - `user_id`：所属用户 ID，引用 `users.id`。
 - `name`：分组名称。
 - `sort_order`：分组顺序，数值越小越靠前。
-- `is_default`：是否默认分组。
+- `is_pinned`：是否置顶。
+- `pinned_at`：置顶时间，可为空。
 - `created_at`：创建时间。
 - `updated_at`：更新时间。
 
 约束：
 
 - 同一用户下分组名称唯一。
-- 每个用户至少保留一个默认分组。
-- 分组删除后，所属条目应回落到默认分组或按服务端规则重新归属。
+- 分组是书架中的轻量折叠容器，不是默认承载层。
+- 分组删除后，所属条目应回落到书架首页的未分组层。
+- 置顶分组在书架首页排序中应优先于未置顶卡片。
 
 ### bookshelf_items
 
@@ -206,7 +208,7 @@
 - `id`：主键。
 - `user_id`：所属用户 ID，引用 `users.id`。
 - `book_id`：书籍 ID，引用 `books.id`。
-- `group_id`：分组 ID，引用 `bookshelf_groups.id`。
+- `group_id`：可为空；为空时表示直接展示在书架首页，非空时表示被折叠在对应分组内。
 - `is_pinned`：是否置顶。
 - `pinned_at`：置顶时间，可为空。
 - `created_at`：加入时间。

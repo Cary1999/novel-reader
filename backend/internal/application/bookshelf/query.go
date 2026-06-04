@@ -37,10 +37,19 @@ func NewListGroupsHandler(repo bookshelfrepository.Repository) *ListGroupsHandle
 }
 
 func (h *ListGroupsHandler) Handle(ctx context.Context, actor shared.Actor) ([]bookshelfentity.Group, error) {
-	if _, err := h.repo.EnsureDefaultGroup(ctx, actor.ActorID); err != nil {
-		return nil, err
-	}
 	return h.repo.ListGroups(ctx, actor.ActorID)
+}
+
+type FindGroupHandler struct {
+	repo bookshelfrepository.Repository
+}
+
+func NewFindGroupHandler(repo bookshelfrepository.Repository) *FindGroupHandler {
+	return &FindGroupHandler{repo: repo}
+}
+
+func (h *FindGroupHandler) Handle(ctx context.Context, actor shared.Actor, groupID int64) (bookshelfentity.Group, error) {
+	return h.repo.FindGroup(ctx, actor.ActorID, groupID)
 }
 
 type FindEntryHandler struct {

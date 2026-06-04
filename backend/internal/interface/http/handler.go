@@ -29,25 +29,25 @@ import (
 )
 
 type Handler struct {
-	identityQueries  *identityapp.Queries
-	identityCommands *identityapp.Commands
-	bookQueries      *bookapp.Queries
-	bookCommands     *bookapp.Commands
-	bookshelfQueries *bookshelfapp.Queries
+	identityQueries   *identityapp.Queries
+	identityCommands  *identityapp.Commands
+	bookQueries       *bookapp.Queries
+	bookCommands      *bookapp.Commands
+	bookshelfQueries  *bookshelfapp.Queries
 	bookshelfCommands *bookshelfapp.Commands
-	categoryQueries  *categoryapp.Queries
-	categoryCommands *categoryapp.Commands
-	siteQueries      *siteapp.Queries
-	siteCommands     *siteapp.Commands
-	uploadSvc        *uploadapp.Service
-	tokens           *jwt.Manager
-	maxUploadBytes   int64
-	maxIconBytes     int64
-	maxAvatarBytes   int64
-	avatarDir        string
-	coverDir         string
-	siteIconDir      string
-	defaultCover     string
+	categoryQueries   *categoryapp.Queries
+	categoryCommands  *categoryapp.Commands
+	siteQueries       *siteapp.Queries
+	siteCommands      *siteapp.Commands
+	uploadSvc         *uploadapp.Service
+	tokens            *jwt.Manager
+	maxUploadBytes    int64
+	maxIconBytes      int64
+	maxAvatarBytes    int64
+	avatarDir         string
+	coverDir          string
+	siteIconDir       string
+	defaultCover      string
 }
 
 type contextKey string
@@ -56,25 +56,25 @@ const actorKey contextKey = "actor"
 
 func New(identityQueries *identityapp.Queries, identityCommands *identityapp.Commands, bookQueries *bookapp.Queries, bookCommands *bookapp.Commands, bookshelfQueries *bookshelfapp.Queries, bookshelfCommands *bookshelfapp.Commands, categoryQueries *categoryapp.Queries, categoryCommands *categoryapp.Commands, siteQueries *siteapp.Queries, siteCommands *siteapp.Commands, uploadSvc *uploadapp.Service, tokens *jwt.Manager, maxUploadBytes int64, maxIconBytes int64, avatarDir string, maxAvatarBytes int64, coverDir string, siteIconDir string, defaultCover string) *Handler {
 	return &Handler{
-		identityQueries:  identityQueries,
-		identityCommands: identityCommands,
-		bookQueries:      bookQueries,
-		bookCommands:     bookCommands,
-		bookshelfQueries: bookshelfQueries,
+		identityQueries:   identityQueries,
+		identityCommands:  identityCommands,
+		bookQueries:       bookQueries,
+		bookCommands:      bookCommands,
+		bookshelfQueries:  bookshelfQueries,
 		bookshelfCommands: bookshelfCommands,
-		categoryQueries:  categoryQueries,
-		categoryCommands: categoryCommands,
-		siteQueries:      siteQueries,
-		siteCommands:     siteCommands,
-		uploadSvc:        uploadSvc,
-		tokens:           tokens,
-		maxUploadBytes:   maxUploadBytes,
-		maxIconBytes:     maxIconBytes,
-		maxAvatarBytes:   maxAvatarBytes,
-		avatarDir:        avatarDir,
-		coverDir:         coverDir,
-		siteIconDir:      siteIconDir,
-		defaultCover:     strings.TrimSpace(defaultCover),
+		categoryQueries:   categoryQueries,
+		categoryCommands:  categoryCommands,
+		siteQueries:       siteQueries,
+		siteCommands:      siteCommands,
+		uploadSvc:         uploadSvc,
+		tokens:            tokens,
+		maxUploadBytes:    maxUploadBytes,
+		maxIconBytes:      maxIconBytes,
+		maxAvatarBytes:    maxAvatarBytes,
+		avatarDir:         avatarDir,
+		coverDir:          coverDir,
+		siteIconDir:       siteIconDir,
+		defaultCover:      strings.TrimSpace(defaultCover),
 	}
 }
 
@@ -109,6 +109,7 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("POST /api/me/books/upload", h.requireAuth(h.requireAuthor(h.UploadBook)))
 	mux.HandleFunc("GET /api/me/bookshelf", h.requireAuth(h.requireFront(h.ListMyBookshelf)))
 	mux.HandleFunc("GET /api/me/bookshelf/groups", h.requireAuth(h.requireFront(h.ListMyBookshelfGroups)))
+	mux.HandleFunc("GET /api/me/bookshelf/groups/{groupId}", h.requireAuth(h.requireFront(h.GetMyBookshelfGroup)))
 	mux.HandleFunc("POST /api/me/bookshelf/groups", h.requireAuth(h.requireFront(h.CreateMyBookshelfGroup)))
 	mux.HandleFunc("PATCH /api/me/bookshelf/groups/{groupId}", h.requireAuth(h.requireFront(h.UpdateMyBookshelfGroup)))
 	mux.HandleFunc("DELETE /api/me/bookshelf/groups/{groupId}", h.requireAuth(h.requireFront(h.DeleteMyBookshelfGroup)))

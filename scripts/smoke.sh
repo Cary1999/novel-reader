@@ -236,18 +236,12 @@ check_bookshelf_management() {
 
   code="$(request GET /api/me/bookshelf/groups "" "$TOKEN")"
   assert_status "bookshelf groups" "$code" "200"
-  default_group_id="$(json_number id)"
-  if [ -z "$default_group_id" ]; then
-    echo "FAIL bookshelf groups: response does not contain group id" >&2
-    sed -n '1,120p' "$TMP_DIR/response.json" >&2 || true
-    exit 1
-  fi
 
   code="$(request POST "/api/me/bookshelf/$SMOKE_BOOK_ID" "{}" "$TOKEN")"
   assert_status "add book to bookshelf" "$code" "200"
 
-  code="$(request GET "/api/me/bookshelf?groupId=$default_group_id&page=1&pageSize=10" "" "$TOKEN")"
-  assert_status "default bookshelf list" "$code" "200"
+  code="$(request GET "/api/me/bookshelf?page=1&pageSize=10" "" "$TOKEN")"
+  assert_status "root bookshelf list" "$code" "200"
 
   code="$(request POST /api/me/bookshelf/groups "{\"name\":\"Smoke Shelf\"}" "$TOKEN")"
   assert_status "create bookshelf group" "$code" "200"
@@ -264,8 +258,14 @@ check_bookshelf_management() {
   code="$(request GET "/api/me/bookshelf?groupId=$custom_group_id&page=1&pageSize=10" "" "$TOKEN")"
   assert_status "custom bookshelf list" "$code" "200"
 
-  code="$(request POST /api/me/bookshelf/batch "{\"action\":\"move\",\"groupId\":$default_group_id,\"bookIds\":[$SMOKE_BOOK_ID]}" "$TOKEN")"
+  code="$(request GET "/api/me/bookshelf/groups/$custom_group_id" "" "$TOKEN")"
+  assert_status "bookshelf group detail" "$code" "200"
+
+  code="$(request POST /api/me/bookshelf/batch "{\"action\":\"move\",\"groupId\":0,\"bookIds\":[$SMOKE_BOOK_ID]}" "$TOKEN")"
   assert_status "batch move bookshelf book" "$code" "200"
+
+  code="$(request GET "/api/me/bookshelf?page=1&pageSize=10" "" "$TOKEN")"
+  assert_status "root bookshelf list after move back" "$code" "200"
 
   code="$(request POST /api/me/bookshelf/batch "{\"action\":\"remove\",\"bookIds\":[$SMOKE_BOOK_ID]}" "$TOKEN")"
   assert_status "batch remove bookshelf book" "$code" "200"

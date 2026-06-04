@@ -4,6 +4,7 @@ import { AccountPage } from "./pages/AccountPage";
 import { AdminBooksPage } from "./pages/AdminBooksPage";
 import { AdminDashboardPage } from "./pages/AdminDashboardPage";
 import { BookDetailPage } from "./pages/BookDetailPage";
+import { BookshelfGroupPage } from "./pages/BookshelfGroupPage";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
@@ -98,6 +99,14 @@ export function App() {
           element={
             <FrontAuthRoute>
               <BookshelfPage />
+            </FrontAuthRoute>
+          }
+        />
+        <Route
+          path="bookshelf/groups/:groupId"
+          element={
+            <FrontAuthRoute>
+              <BookshelfGroupPage />
             </FrontAuthRoute>
           }
         />

@@ -446,12 +446,12 @@ func (fakeBookRepo) DeleteChapter(context.Context, int64, int64) error {
 
 type fakeBookshelfRepo struct{}
 
-func (fakeBookshelfRepo) EnsureDefaultGroup(context.Context, int64) (bookshelfentity.Group, error) {
-	return bookshelfentity.Group{ID: 1, Name: "默认书架", IsDefault: true}, nil
+func (fakeBookshelfRepo) ListGroups(context.Context, int64) ([]bookshelfentity.Group, error) {
+	return []bookshelfentity.Group{{ID: 1, Name: "追更中", ItemCount: 1}}, nil
 }
 
-func (fakeBookshelfRepo) ListGroups(context.Context, int64) ([]bookshelfentity.Group, error) {
-	return []bookshelfentity.Group{{ID: 1, Name: "默认书架", IsDefault: true, ItemCount: 1}}, nil
+func (fakeBookshelfRepo) FindGroup(_ context.Context, userID, groupID int64) (bookshelfentity.Group, error) {
+	return bookshelfentity.Group{ID: groupID, UserID: userID, Name: "追更中", ItemCount: 1}, nil
 }
 
 func (fakeBookshelfRepo) CreateGroup(_ context.Context, userID int64, name string) (bookshelfentity.Group, error) {
@@ -466,6 +466,10 @@ func (fakeBookshelfRepo) ReorderGroup(_ context.Context, userID, groupID int64, 
 	return bookshelfentity.Group{ID: groupID, UserID: userID, SortOrder: sortOrder}, nil
 }
 
+func (fakeBookshelfRepo) UpdateGroupPin(_ context.Context, userID, groupID int64, pinned bool) (bookshelfentity.Group, error) {
+	return bookshelfentity.Group{ID: groupID, UserID: userID, Name: "追更中", IsPinned: pinned}, nil
+}
+
 func (fakeBookshelfRepo) DeleteGroup(context.Context, int64, int64) error {
 	return nil
 }
@@ -476,12 +480,13 @@ func (fakeBookshelfRepo) ListEntries(context.Context, int64, *int64, int, int) (
 
 func (fakeBookshelfRepo) FindEntryByBookID(_ context.Context, userID, bookID int64) (bookshelfentity.Entry, error) {
 	owner := userID
-	return bookshelfentity.Entry{ID: 1, UserID: userID, BookID: bookID, GroupID: 1, GroupName: "默认书架", IsDefault: true, Book: bookentity.Book{ID: bookID, Title: "测试书", OwnerUserID: &owner}}, nil
+	groupID := int64(1)
+	return bookshelfentity.Entry{ID: 1, UserID: userID, BookID: bookID, GroupID: &groupID, GroupName: "追更中", Book: bookentity.Book{ID: bookID, Title: "测试书", OwnerUserID: &owner}}, nil
 }
 
 func (fakeBookshelfRepo) AddBook(_ context.Context, userID, bookID int64, _ *int64) (bookshelfentity.Entry, error) {
 	owner := userID
-	return bookshelfentity.Entry{ID: 1, UserID: userID, BookID: bookID, GroupID: 1, GroupName: "默认书架", IsDefault: true, Book: bookentity.Book{ID: bookID, Title: "测试书", OwnerUserID: &owner}}, nil
+	return bookshelfentity.Entry{ID: 1, UserID: userID, BookID: bookID, Book: bookentity.Book{ID: bookID, Title: "测试书", OwnerUserID: &owner}}, nil
 }
 
 func (fakeBookshelfRepo) UpdateBook(_ context.Context, userID, bookID int64, _ *int64, pinned *bool) (bookshelfentity.Entry, error) {

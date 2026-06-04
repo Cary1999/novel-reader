@@ -67,6 +67,19 @@ func (h *Handler) ListMyBookshelfGroups(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, map[string]any{"items": items})
 }
 
+func (h *Handler) GetMyBookshelfGroup(w http.ResponseWriter, r *http.Request) {
+	groupID, ok := pathInt(w, r, "groupId")
+	if !ok {
+		return
+	}
+	item, err := h.bookshelfQueries.FindGroup.Handle(r.Context(), mustActor(r), groupID)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, item)
+}
+
 func (h *Handler) CreateMyBookshelfGroup(w http.ResponseWriter, r *http.Request) {
 	var req bookshelfapp.CreateGroup
 	if !decodeJSON(w, r, &req) {
@@ -88,8 +101,18 @@ func (h *Handler) UpdateMyBookshelfGroup(w http.ResponseWriter, r *http.Request)
 	var req struct {
 		Name      string `json:"name"`
 		SortOrder int    `json:"sortOrder"`
+		Pinned    *bool  `json:"pinned"`
 	}
 	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if req.Pinned != nil {
+		item, err := h.bookshelfCommands.PinGroup.Handle(r.Context(), mustActor(r), groupID, bookshelfapp.PinGroup{Pinned: *req.Pinned})
+		if err != nil {
+			writeError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, item)
 		return
 	}
 	if strings.TrimSpace(req.Name) != "" {

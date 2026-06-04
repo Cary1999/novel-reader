@@ -63,14 +63,21 @@ func migrate(ctx context.Context, db *sql.DB) error {
 			user_id BIGINT NOT NULL,
 			name VARCHAR(64) NOT NULL,
 			sort_order INT NOT NULL DEFAULT 0,
-			is_default TINYINT(1) NOT NULL DEFAULT 0,
+			is_pinned TINYINT(1) NOT NULL DEFAULT 0,
+			pinned_at TIMESTAMP NULL,
 			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 			UNIQUE KEY uk_bookshelf_groups_user_name (user_id, name),
-			INDEX idx_bookshelf_groups_user_sort (user_id, sort_order, id),
+			INDEX idx_bookshelf_groups_user_sort (user_id, is_pinned, pinned_at, sort_order, id),
 			CONSTRAINT fk_bookshelf_groups_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 	`); err != nil {
+		return err
+	}
+	if err := ensureColumn(ctx, db, "bookshelf_groups", "is_pinned", `ALTER TABLE bookshelf_groups ADD COLUMN is_pinned TINYINT(1) NOT NULL DEFAULT 0 AFTER sort_order`); err != nil {
+		return err
+	}
+	if err := ensureColumn(ctx, db, "bookshelf_groups", "pinned_at", `ALTER TABLE bookshelf_groups ADD COLUMN pinned_at TIMESTAMP NULL AFTER is_pinned`); err != nil {
 		return err
 	}
 	if _, err := db.ExecContext(ctx, `
@@ -78,7 +85,7 @@ func migrate(ctx context.Context, db *sql.DB) error {
 			id BIGINT PRIMARY KEY AUTO_INCREMENT,
 			user_id BIGINT NOT NULL,
 			book_id BIGINT NOT NULL,
-			group_id BIGINT NOT NULL,
+			group_id BIGINT NULL,
 			is_pinned TINYINT(1) NOT NULL DEFAULT 0,
 			pinned_at TIMESTAMP NULL,
 			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -92,6 +99,24 @@ func migrate(ctx context.Context, db *sql.DB) error {
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 	`); err != nil {
 		return err
+	}
+	if err := ensureColumnAlter(ctx, db, "bookshelf_items", "group_id", `ALTER TABLE bookshelf_items MODIFY COLUMN group_id BIGINT NULL`); err != nil {
+		return err
+	}
+	if ok, err := hasColumn(ctx, db, "bookshelf_groups", "is_default"); err != nil {
+		return err
+	} else if ok {
+		if _, err := db.ExecContext(ctx, `
+			UPDATE bookshelf_items bi
+			JOIN bookshelf_groups bg ON bg.id = bi.group_id
+			SET bi.group_id = NULL
+			WHERE bg.is_default = 1
+		`); err != nil {
+			return err
+		}
+		if _, err := db.ExecContext(ctx, `DELETE FROM bookshelf_groups WHERE is_default = 1`); err != nil {
+			return err
+		}
 	}
 	return nil
 }

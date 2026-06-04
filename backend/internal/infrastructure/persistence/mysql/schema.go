@@ -114,11 +114,12 @@ CREATE TABLE IF NOT EXISTS bookshelf_groups (
   user_id BIGINT NOT NULL,
   name VARCHAR(64) NOT NULL,
   sort_order INT NOT NULL DEFAULT 0,
-  is_default TINYINT(1) NOT NULL DEFAULT 0,
+  is_pinned TINYINT(1) NOT NULL DEFAULT 0,
+  pinned_at TIMESTAMP NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uk_bookshelf_groups_user_name (user_id, name),
-  INDEX idx_bookshelf_groups_user_sort (user_id, sort_order, id),
+  INDEX idx_bookshelf_groups_user_sort (user_id, is_pinned, pinned_at, sort_order, id),
   CONSTRAINT fk_bookshelf_groups_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -126,7 +127,7 @@ CREATE TABLE IF NOT EXISTS bookshelf_items (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   user_id BIGINT NOT NULL,
   book_id BIGINT NOT NULL,
-  group_id BIGINT NOT NULL,
+  group_id BIGINT NULL,
   is_pinned TINYINT(1) NOT NULL DEFAULT 0,
   pinned_at TIMESTAMP NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -1,8 +1,8 @@
-import { BookOpen, ChevronRight } from "lucide-react";
+import { BookOpen, ChevronRight, Pin } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { BookSummary } from "../api/types";
 
-export function BookCard({ book }: { book: BookSummary }) {
+export function BookCard({ book, isPinned = false }: { book: BookSummary; isPinned?: boolean }) {
   return (
     <article className="book-card">
       <div className="book-cover" aria-hidden="true">
@@ -16,13 +16,20 @@ export function BookCard({ book }: { book: BookSummary }) {
         )}
       </div>
       <div className="book-card-body">
-        <div className="book-card-head">
-          <span className="book-chip">{book.category || "未分类"}</span>
-          <span className="book-card-count">{book.chapterCount} 章</span>
+        <span className="book-card-count book-card-count-floating">{book.chapterCount} 章</span>
+        <div className="book-title-row">
+          {isPinned ? (
+            <span className="book-pin-inline" aria-label="已置顶" title="已置顶">
+              <Pin size={14} aria-hidden="true" />
+            </span>
+          ) : null}
+          <h3>{book.title}</h3>
         </div>
-        <h3>{book.title}</h3>
         <p className="author">作者：{book.author}</p>
         <p className="description">{book.description || "暂无简介"}</p>
+        <div className="book-card-tag-row">
+          <span className="book-chip">{book.category || "未分类"}</span>
+        </div>
         <div className="book-card-footer">
           <span>最新：{book.latestChapterTitle || "暂无章节"}</span>
           <Link to={`/books/${book.id}`} aria-label={`查看《${book.title}》详情`}>

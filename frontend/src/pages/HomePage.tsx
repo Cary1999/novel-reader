@@ -184,50 +184,42 @@ export function HomePage() {
                   <div className="book-grid search-results">
                     {searchBooks.map((book) => <BookCard key={book.id} book={book} />)}
                   </div>
-                  <div className="pagination search-pagination">
-                    <div className="pagination-nav">
-                      <button className="ghost-button" type="button" onClick={() => gotoPage(page - 1)} disabled={page <= 1}>
-                        <ChevronLeft size={16} aria-hidden="true" />
-                        上一页
-                      </button>
-                      <span>{page} / {totalPages}</span>
-                      <button className="ghost-button" type="button" onClick={() => gotoPage(page + 1)} disabled={page >= totalPages}>
-                        下一页
-                        <ChevronRight size={16} aria-hidden="true" />
-                      </button>
-                    </div>
-                    <div className="page-size-control pagination-page-size">
-                      <label>
-                        每页
-                        <select
-                          value={pageSizeMode}
-                          onChange={(event) => {
-                            const value = event.target.value;
-                            setPageSizeMode(value);
-                            if (value === "custom") {
-                              return;
-                            }
-                            applyPageSize(Number(value));
-                          }}
-                        >
-                          {SEARCH_PAGE_SIZE_OPTIONS.map((value) => (
-                            <option key={value} value={value}>{value}</option>
-                          ))}
-                          <option value="custom">自定义</option>
-                        </select>
-                      </label>
+                  <div className="pagination bookshelf-pagination">
+                    <button className="ghost-button" type="button" onClick={() => gotoPage(page - 1)} disabled={page <= 1}>
+                      <ChevronLeft size={16} aria-hidden="true" />
+                      上一页
+                    </button>
+                    <span>{page} / {totalPages}</span>
+                    <button className="ghost-button" type="button" onClick={() => gotoPage(page + 1)} disabled={page >= totalPages}>
+                      下一页
+                      <ChevronRight size={16} aria-hidden="true" />
+                    </button>
+                    <div className="page-size-control pagination-page-size inline">
+                      <select
+                        value={pageSizeMode}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          setPageSizeMode(value);
+                          if (value === "custom") {
+                            return;
+                          }
+                          applyPageSize(Number(value));
+                        }}
+                      >
+                        {SEARCH_PAGE_SIZE_OPTIONS.map((value) => (
+                          <option key={value} value={value}>{value}</option>
+                        ))}
+                        <option value="custom">自定义</option>
+                      </select>
                       {pageSizeMode === "custom" ? (
                         <>
-                          <label>
-                            数值
-                            <input
-                              type="number"
-                              min={1}
-                              max={100}
-                              value={customPageSize}
-                              onChange={(event) => setCustomPageSize(event.target.value)}
-                            />
-                          </label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={100}
+                            value={customPageSize}
+                            onChange={(event) => setCustomPageSize(event.target.value)}
+                          />
                           <button
                             className="ghost-button compact"
                             type="button"

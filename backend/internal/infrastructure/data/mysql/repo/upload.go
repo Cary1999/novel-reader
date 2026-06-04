@@ -20,9 +20,9 @@ func (r UploadRepository) CreateUpload(ctx context.Context, item uploadentity.Up
 	var record model.Upload
 	record.FromEntity(&item)
 	result, err := r.db.ExecContext(ctx, `
-		INSERT INTO uploads (actor_user_id, original_filename, stored_path, file_size, status)
-		VALUES (?, ?, ?, ?, ?)
-	`, record.ActorUserID, record.OriginalFilename, record.StoredPath, record.FileSize, record.Status)
+		INSERT INTO uploads (actor_user_id, admin_user_id, original_filename, stored_path, file_size, status)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, record.ActorUserID, record.AdminUserID, record.OriginalFilename, record.StoredPath, record.FileSize, record.Status)
 	if err != nil {
 		return 0, err
 	}

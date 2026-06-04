@@ -13,6 +13,7 @@
 - `id`：主键。
 - `username`：唯一用户名。
 - `nickname`：昵称，注册时默认等于用户名。
+- `avatar_path`：头像文件相对路径，可为空。
 - `password_hash`：密码哈希。
 - `role`：`reader` 或 `author`。
 - `created_at`：创建时间。
@@ -23,6 +24,7 @@
 - `username` 唯一。
 - `password_hash` 不允许为空。
 - `role` 默认 `reader`。
+- `avatar_path` 由服务端生成，不接受客户端直接写入绝对路径。
 
 ### operators
 
@@ -175,6 +177,47 @@
 
 - 同一用户同一时间最多一条 `pending` 申请。
 
+### bookshelf_groups
+
+用途：保存用户书架分组。
+
+字段：
+
+- `id`：主键。
+- `user_id`：所属用户 ID，引用 `users.id`。
+- `name`：分组名称。
+- `sort_order`：分组顺序，数值越小越靠前。
+- `is_default`：是否默认分组。
+- `created_at`：创建时间。
+- `updated_at`：更新时间。
+
+约束：
+
+- 同一用户下分组名称唯一。
+- 每个用户至少保留一个默认分组。
+- 分组删除后，所属条目应回落到默认分组或按服务端规则重新归属。
+
+### bookshelf_items
+
+用途：保存用户加入书架的书籍和分组归属。
+
+字段：
+
+- `id`：主键。
+- `user_id`：所属用户 ID，引用 `users.id`。
+- `book_id`：书籍 ID，引用 `books.id`。
+- `group_id`：分组 ID，引用 `bookshelf_groups.id`。
+- `is_pinned`：是否置顶。
+- `pinned_at`：置顶时间，可为空。
+- `created_at`：加入时间。
+- `updated_at`：更新时间。
+
+约束：
+
+- 同一用户同一本书只能有一条书架记录。
+- 书架条目删除后不影响书籍本身。
+- 书籍删除时应级联清理对应书架条目。
+
 ## 初始数据
 
 项目首次启动或 seed 时应包含：
@@ -219,3 +262,16 @@ data/uploads/covers/
 - 允许 `jpg`/`jpeg`、`png`、`webp`。
 - 最大尺寸 10MB。
 - 如果书籍没有封面，封面读取接口必须返回服务端占位图（HTTP 200），而不是 404。
+
+头像文件保存到：
+
+```text
+data/uploads/avatars/
+```
+
+规则：
+
+- 默认相对路径按仓库根目录解析，保证本地 `go run` 与 Docker 启动写入同一逻辑位置。
+- 文件名由服务端生成，避免使用原始文件名作为路径。
+- 允许 `jpg`/`jpeg`、`png`、`webp`。
+- 最大尺寸由配置项控制，MVP 默认限制为 5MB。

@@ -16,6 +16,7 @@ type Store struct {
 	mysqlrepo.CategoryRepository
 	mysqlrepo.SiteRepository
 	mysqlrepo.BookRepository
+	mysqlrepo.BookshelfRepository
 	mysqlrepo.UploadRepository
 }
 
@@ -27,6 +28,7 @@ func NewStore(db *sql.DB, gdb *gorm.DB) *Store {
 		CategoryRepository: mysqlrepo.NewCategoryRepository(db),
 		SiteRepository:     mysqlrepo.NewSiteRepository(db),
 		BookRepository:     mysqlrepo.NewBookRepository(gdb),
+		BookshelfRepository: mysqlrepo.NewBookshelfRepository(gdb),
 		UploadRepository:   mysqlrepo.NewUploadRepository(db),
 	}
 }

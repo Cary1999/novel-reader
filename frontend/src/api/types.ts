@@ -11,6 +11,7 @@ export interface CurrentUser {
   username: string;
   nickname: string;
   role: FrontRole;
+  avatarUrl?: string;
 }
 
 export interface CurrentOperator {
@@ -76,6 +77,38 @@ export interface BookDetail {
   coverUrl?: string;
 }
 
+export interface BookshelfGroup {
+  id: number;
+  userId: number;
+  name: string;
+  sortOrder: number;
+  isDefault: boolean;
+  itemCount?: number;
+}
+
+export interface BookshelfEntry {
+  id: number;
+  userId: number;
+  bookId: number;
+  groupId: number;
+  groupName: string;
+  isDefault: boolean;
+  isPinned: boolean;
+  pinnedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  book: BookSummary;
+}
+
+export interface BookshelfGroupListResponse {
+  items: BookshelfGroup[];
+}
+
+export interface BookshelfEntryListResponse {
+  items: BookshelfEntry[];
+  total: number;
+}
+
 export interface ChapterSummary {
   id: number;
   index: number;
@@ -106,6 +139,28 @@ export interface SearchBooksParams {
   categoryId?: number | string;
   page?: number;
   pageSize?: number;
+}
+
+export interface BookshelfEntryQueryParams {
+  groupId?: number | string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface BookshelfGroupInput {
+  name: string;
+  sortOrder?: number;
+}
+
+export interface BookshelfBookInput {
+  groupId?: number | string;
+  pinned?: boolean;
+}
+
+export interface BookshelfBatchInput {
+  action: "move" | "pin" | "unpin" | "remove";
+  groupId?: number | string;
+  bookIds: number[];
 }
 
 export interface UploadBookInput {

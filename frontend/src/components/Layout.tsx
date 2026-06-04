@@ -1,4 +1,4 @@
-import { LibraryBig, LogOut, Search, ShieldCheck, UserPlus } from "lucide-react";
+import { LibraryBig, LogOut, ShieldCheck, UserPlus } from "lucide-react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { useSiteSettings } from "../site/SiteSettingsContext";
@@ -31,7 +31,7 @@ export function Layout() {
             ) : (
               <>
                 <NavLink to="/" end>发现</NavLink>
-                <NavLink to="/search"><Search size={16} aria-hidden="true" />书库</NavLink>
+                <NavLink to="/bookshelf"><LibraryBig size={16} aria-hidden="true" />我的书架</NavLink>
                 {isAuthenticated && isAuthor ? <NavLink to="/author"><LibraryBig size={16} aria-hidden="true" />作者端</NavLink> : null}
               </>
             )}
@@ -41,6 +41,7 @@ export function Layout() {
               <>
                 {isFrontPortal ? (
                   <Link className="user-chip" to="/account">
+                    {user && "avatarUrl" in user && user.avatarUrl ? <img className="user-chip-avatar" src={user.avatarUrl} alt="" /> : null}
                     <span className="user-chip-label">当前用户</span>
                     <strong>{frontDisplayName}</strong>
                   </Link>

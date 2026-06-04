@@ -1,4 +1,4 @@
-import { BookOpen, List, LockKeyhole, ScrollText } from "lucide-react";
+import { BookOpen, List, LockKeyhole, Plus, ScrollText } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { apiClient, ApiError } from "../api/client";
@@ -15,6 +15,7 @@ export function BookDetailPage() {
   const [chapters, setChapters] = useState<ChapterSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
 
   async function load() {
     try {
@@ -30,6 +31,16 @@ export function BookDetailPage() {
       setError(err instanceof ApiError ? err.message : "书籍详情加载失败");
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function addToBookshelf() {
+    try {
+      setMessage("");
+      await apiClient.addToBookshelf(bookId);
+      setMessage("已加入书架");
+    } catch (err) {
+      setMessage(err instanceof ApiError ? err.message : "加入书架失败");
     }
   }
 
@@ -88,8 +99,15 @@ export function BookDetailPage() {
                 开始阅读
               </button>
             ) : null}
-            <Link className="ghost-button" to="/search">返回搜索</Link>
+            {isAuthenticated ? (
+              <button className="ghost-button" type="button" onClick={() => void addToBookshelf()}>
+                <Plus size={18} aria-hidden="true" />
+                加入书架
+              </button>
+            ) : null}
+            <Link className="ghost-button" to="/">返回首页</Link>
           </div>
+          {message ? <p className="success-banner">{message}</p> : null}
           <div className="detail-notes">
             <span><ScrollText size={16} aria-hidden="true" />目录随上传和编辑实时更新</span>
             <span><List size={16} aria-hidden="true" />支持按章节连续阅读</span>

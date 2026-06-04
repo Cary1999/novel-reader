@@ -1,6 +1,7 @@
 package model
 
 import (
+	"database/sql"
 	"time"
 
 	identityentity "novel-reader/backend/internal/domain/identity/entity"
@@ -11,6 +12,7 @@ type User struct {
 	ID           int64
 	Username     string
 	Nickname     string
+	AvatarPath   sql.NullString
 	PasswordHash string
 	Role         string
 	CreatedAt    time.Time
@@ -57,6 +59,11 @@ func (m *User) FromEntity(e *identityentity.User) {
 	m.ID = e.ID
 	m.Username = e.Username
 	m.Nickname = e.Nickname
+	if e.AvatarPath != nil {
+		m.AvatarPath = sql.NullString{String: *e.AvatarPath, Valid: true}
+	} else {
+		m.AvatarPath = sql.NullString{}
+	}
 	m.PasswordHash = e.PasswordHash
 	m.Role = string(e.Role)
 	m.CreatedAt = e.CreatedAt
@@ -68,11 +75,19 @@ func (m User) ToEntity() identityentity.User {
 		ID:           m.ID,
 		Username:     m.Username,
 		Nickname:     m.Nickname,
+		AvatarPath:   nullStringToPointer(m.AvatarPath),
 		PasswordHash: m.PasswordHash,
 		Role:         shared.Role(m.Role),
 		CreatedAt:    m.CreatedAt,
 		UpdatedAt:    m.UpdatedAt,
 	}
+}
+
+func nullStringToPointer(value sql.NullString) *string {
+	if !value.Valid {
+		return nil
+	}
+	return &value.String
 }
 
 func (m Operator) ToEntity() identityentity.Operator {

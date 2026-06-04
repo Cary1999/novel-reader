@@ -8,6 +8,7 @@
 - 前台登录后接口使用 `Authorization: Bearer <front-token>`。
 - 后台登录后接口使用 `Authorization: Bearer <admin-token>`。
 - 分页参数从 `page=1` 开始。
+- 书库搜索和书架分页支持 `pageSize`，前台搜索结果允许 `1-100` 自定义页数。
 - 时间字段使用 ISO 8601 字符串。
 - 章节正文接口需要前台登录。
 - 后台接口只接受后台运营账号 Token。
@@ -91,9 +92,25 @@
   "id": 1,
   "username": "reader1",
   "nickname": "reader1",
-  "role": "reader"
+  "role": "reader",
+  "avatarUrl": "/api/users/1/avatar?v=1710000000000"
 }
 ```
+
+### POST /api/auth/me/avatar
+
+认证：
+
+- 需要前台登录。
+
+请求：
+
+- `multipart/form-data`
+- 字段：`file`
+
+响应：
+
+- 与 `GET /api/auth/me` 一致，返回包含 `avatarUrl` 的当前用户信息。
 
 ### PATCH /api/auth/me
 
@@ -188,6 +205,8 @@
 
 ### GET /api/site-settings/icon
 
+### GET /api/users/{userId}/avatar
+
 ### GET /api/books/search
 
 ### GET /api/books/recommendations
@@ -203,6 +222,118 @@
 - 需要前台登录。
 
 ### GET /api/books/{bookId}/cover
+
+## 我的书架
+
+### GET /api/me/bookshelf
+
+认证：
+
+- 需要前台登录。
+
+请求参数：
+
+- `groupId`：可选，书架分组 ID。
+- `page`：可选，默认 `1`。
+- `pageSize`：可选，默认 `20`。
+
+### GET /api/me/bookshelf/{bookId}
+
+认证：
+
+- 需要前台登录。
+
+### POST /api/me/bookshelf/{bookId}
+
+认证：
+
+- 需要前台登录。
+
+请求：
+
+```json
+{
+  "groupId": 1
+}
+```
+
+### PATCH /api/me/bookshelf/{bookId}
+
+认证：
+
+- 需要前台登录。
+
+请求：
+
+```json
+{
+  "groupId": 1,
+  "pinned": true
+}
+```
+
+### DELETE /api/me/bookshelf/{bookId}
+
+认证：
+
+- 需要前台登录。
+
+### GET /api/me/bookshelf/groups
+
+认证：
+
+- 需要前台登录。
+
+### POST /api/me/bookshelf/groups
+
+认证：
+
+- 需要前台登录。
+
+请求：
+
+```json
+{
+  "name": "追更中"
+}
+```
+
+### PATCH /api/me/bookshelf/groups/{groupId}
+
+认证：
+
+- 需要前台登录。
+
+请求：
+
+```json
+{
+  "name": "追更中",
+  "sortOrder": 2
+}
+```
+
+### DELETE /api/me/bookshelf/groups/{groupId}
+
+认证：
+
+- 需要前台登录。
+
+### POST /api/me/bookshelf/batch
+
+认证：
+
+- 需要前台登录。
+
+请求：
+
+```json
+{
+  "action": "move",
+  "groupId": 2,
+  "bookIds": [1, 2, 3]
+}
+```
 
 ## 作者端作品接口
 

@@ -11,12 +11,15 @@ import (
 	"time"
 
 	bookapp "novel-reader/backend/internal/application/book"
+	bookshelfapp "novel-reader/backend/internal/application/bookshelf"
 	categoryapp "novel-reader/backend/internal/application/category"
 	identityapp "novel-reader/backend/internal/application/identity"
+	identitycommand "novel-reader/backend/internal/application/identity/command"
 	siteapp "novel-reader/backend/internal/application/site"
 	sitecommand "novel-reader/backend/internal/application/site/command"
 	uploadapp "novel-reader/backend/internal/application/upload"
 	bookentity "novel-reader/backend/internal/domain/book/entity"
+	bookshelfentity "novel-reader/backend/internal/domain/bookshelf/entity"
 	categoryentity "novel-reader/backend/internal/domain/category/entity"
 	identityentity "novel-reader/backend/internal/domain/identity/entity"
 	"novel-reader/backend/internal/domain/shared"
@@ -246,15 +249,17 @@ func testHandler(t *testing.T) (http.Handler, *jwt.Manager) {
 	tokens := jwt.NewManager([]byte("test-secret"), time.Hour)
 	repo := fakeIdentityRepo{}
 	identityQueries := identityapp.NewQueries(repo, repo, repo)
-	identityCommands := identityapp.NewCommands(repo, repo, repo, tokens, tokens)
+	identityCommands := identityapp.NewCommands(repo, repo, repo, tokens, tokens, fakeFileStore{})
 	bookQueries := bookapp.NewQueries(fakeBookRepo{})
 	bookCommands := bookapp.NewCommands(fakeBookRepo{}, fakeCategoryRepo{})
+	bookshelfQueries := bookshelfapp.NewQueries(fakeBookshelfRepo{})
+	bookshelfCommands := bookshelfapp.NewCommands(fakeBookshelfRepo{})
 	categoryQueries := categoryapp.NewQueries(fakeCategoryRepo{})
 	categoryCommands := categoryapp.NewCommands(fakeCategoryRepo{})
 	siteQueries := siteapp.NewQueries(fakeSiteRepo{})
 	siteCommands := siteapp.NewCommands(fakeSiteRepo{}, fakeFileStore{})
 	uploadSvc := uploadapp.NewService(fakeBookRepo{}, fakeCategoryRepo{}, fakeUploadRepo{}, fakeFileStore{}, fakeFileStore{}, fakeParser{})
-	h := New(identityQueries, identityCommands, bookQueries, bookCommands, categoryQueries, categoryCommands, siteQueries, siteCommands, uploadSvc, tokens, 1024, 1024, t.TempDir(), t.TempDir(), "")
+	h := New(identityQueries, identityCommands, bookQueries, bookCommands, bookshelfQueries, bookshelfCommands, categoryQueries, categoryCommands, siteQueries, siteCommands, uploadSvc, tokens, 1024, 1024, t.TempDir(), 1024, t.TempDir(), t.TempDir(), "")
 	return h.Routes(), tokens
 }
 
@@ -280,7 +285,8 @@ func (fakeIdentityRepo) CreateUser(context.Context, string, string, shared.Role)
 func (fakeIdentityRepo) FindUserByUsername(_ context.Context, username string) (identityentity.User, error) {
 	switch username {
 	case "author":
-		return identityentity.User{ID: 1, Username: "author", Nickname: "author", PasswordHash: "$2a$10$7EqJtq98hPqEX7fNZaFWoO5NL0E7g8iIrM3P6KDAdAm8YGtSNYGG6", Role: shared.RoleAuthor}, nil
+		avatar := "avatar.png"
+		return identityentity.User{ID: 1, Username: "author", Nickname: "author", AvatarPath: &avatar, PasswordHash: "$2a$10$7EqJtq98hPqEX7fNZaFWoO5NL0E7g8iIrM3P6KDAdAm8YGtSNYGG6", Role: shared.RoleAuthor}, nil
 	default:
 		return identityentity.User{}, shared.ErrNotFound
 	}
@@ -291,7 +297,12 @@ func (fakeIdentityRepo) FindUserByID(_ context.Context, id int64) (identityentit
 	if id == 1 {
 		role = shared.RoleAuthor
 	}
-	return identityentity.User{ID: id, Username: "reader", Nickname: "reader", Role: role}, nil
+	avatar := "avatar.png"
+	return identityentity.User{ID: id, Username: "reader", Nickname: "reader", AvatarPath: &avatar, Role: role}, nil
+}
+
+func (fakeIdentityRepo) FindUserAvatarByID(context.Context, int64) (string, error) {
+	return "avatar.png", nil
 }
 
 func (fakeIdentityRepo) ListUsers(context.Context) ([]identityentity.FrontUserSummary, error) {
@@ -299,7 +310,12 @@ func (fakeIdentityRepo) ListUsers(context.Context) ([]identityentity.FrontUserSu
 }
 
 func (fakeIdentityRepo) UpdateUserNickname(_ context.Context, id int64, nickname string) (identityentity.User, error) {
-	return identityentity.User{ID: id, Username: "reader", Nickname: nickname, Role: shared.RoleReader}, nil
+	avatar := "avatar.png"
+	return identityentity.User{ID: id, Username: "reader", Nickname: nickname, AvatarPath: &avatar, Role: shared.RoleReader}, nil
+}
+
+func (fakeIdentityRepo) UpdateUserAvatar(_ context.Context, id int64, avatarPath string) (identityentity.User, error) {
+	return identityentity.User{ID: id, Username: "reader", Nickname: "reader", AvatarPath: &avatarPath, Role: shared.RoleReader}, nil
 }
 
 func (fakeIdentityRepo) UpdateUserPassword(context.Context, int64, string) error {
@@ -428,6 +444,62 @@ func (fakeBookRepo) DeleteChapter(context.Context, int64, int64) error {
 	return nil
 }
 
+type fakeBookshelfRepo struct{}
+
+func (fakeBookshelfRepo) EnsureDefaultGroup(context.Context, int64) (bookshelfentity.Group, error) {
+	return bookshelfentity.Group{ID: 1, Name: "默认书架", IsDefault: true}, nil
+}
+
+func (fakeBookshelfRepo) ListGroups(context.Context, int64) ([]bookshelfentity.Group, error) {
+	return []bookshelfentity.Group{{ID: 1, Name: "默认书架", IsDefault: true, ItemCount: 1}}, nil
+}
+
+func (fakeBookshelfRepo) CreateGroup(_ context.Context, userID int64, name string) (bookshelfentity.Group, error) {
+	return bookshelfentity.Group{ID: 2, UserID: userID, Name: name}, nil
+}
+
+func (fakeBookshelfRepo) RenameGroup(_ context.Context, userID, groupID int64, name string) (bookshelfentity.Group, error) {
+	return bookshelfentity.Group{ID: groupID, UserID: userID, Name: name}, nil
+}
+
+func (fakeBookshelfRepo) ReorderGroup(_ context.Context, userID, groupID int64, sortOrder int) (bookshelfentity.Group, error) {
+	return bookshelfentity.Group{ID: groupID, UserID: userID, SortOrder: sortOrder}, nil
+}
+
+func (fakeBookshelfRepo) DeleteGroup(context.Context, int64, int64) error {
+	return nil
+}
+
+func (fakeBookshelfRepo) ListEntries(context.Context, int64, *int64, int, int) ([]bookshelfentity.Entry, int, error) {
+	return []bookshelfentity.Entry{}, 0, nil
+}
+
+func (fakeBookshelfRepo) FindEntryByBookID(_ context.Context, userID, bookID int64) (bookshelfentity.Entry, error) {
+	owner := userID
+	return bookshelfentity.Entry{ID: 1, UserID: userID, BookID: bookID, GroupID: 1, GroupName: "默认书架", IsDefault: true, Book: bookentity.Book{ID: bookID, Title: "测试书", OwnerUserID: &owner}}, nil
+}
+
+func (fakeBookshelfRepo) AddBook(_ context.Context, userID, bookID int64, _ *int64) (bookshelfentity.Entry, error) {
+	owner := userID
+	return bookshelfentity.Entry{ID: 1, UserID: userID, BookID: bookID, GroupID: 1, GroupName: "默认书架", IsDefault: true, Book: bookentity.Book{ID: bookID, Title: "测试书", OwnerUserID: &owner}}, nil
+}
+
+func (fakeBookshelfRepo) UpdateBook(_ context.Context, userID, bookID int64, _ *int64, pinned *bool) (bookshelfentity.Entry, error) {
+	entry, _ := fakeBookshelfRepo{}.FindEntryByBookID(context.Background(), userID, bookID)
+	if pinned != nil {
+		entry.IsPinned = *pinned
+	}
+	return entry, nil
+}
+
+func (fakeBookshelfRepo) RemoveBook(context.Context, int64, int64) error {
+	return nil
+}
+
+func (fakeBookshelfRepo) BatchManage(context.Context, int64, []int64, string, *int64) error {
+	return nil
+}
+
 type fakeCategoryRepo struct{}
 
 func (fakeCategoryRepo) ListCategories(context.Context) ([]categoryentity.Category, error) {
@@ -468,6 +540,10 @@ func (fakeFileStore) SaveTXT(string, io.Reader) (uploadapp.SavedFile, error) {
 
 func (fakeFileStore) SaveCover(string, io.Reader) (uploadapp.SavedFile, error) {
 	return uploadapp.SavedFile{RelativePath: "cover.png"}, nil
+}
+
+func (fakeFileStore) SaveAvatar(string, io.Reader) (identitycommand.SavedAvatar, error) {
+	return identitycommand.SavedAvatar{RelativePath: "avatar.png"}, nil
 }
 
 func (fakeFileStore) SaveSiteIcon(string, io.Reader) (sitecommand.SavedIcon, error) {

@@ -58,8 +58,8 @@ func normalizePageSize(pageSize int) int {
 	if pageSize < 1 {
 		return 20
 	}
-	if pageSize > 50 {
-		return 50
+	if pageSize > 100 {
+		return 100
 	}
 	return pageSize
 }

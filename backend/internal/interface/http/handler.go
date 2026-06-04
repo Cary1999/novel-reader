@@ -14,6 +14,7 @@ import (
 	bookapp "novel-reader/backend/internal/application/book"
 	bookcommand "novel-reader/backend/internal/application/book/command"
 	bookquery "novel-reader/backend/internal/application/book/query"
+	bookshelfapp "novel-reader/backend/internal/application/bookshelf"
 	categoryapp "novel-reader/backend/internal/application/category"
 	categorycommand "novel-reader/backend/internal/application/category/command"
 	identityapp "novel-reader/backend/internal/application/identity"
@@ -32,6 +33,8 @@ type Handler struct {
 	identityCommands *identityapp.Commands
 	bookQueries      *bookapp.Queries
 	bookCommands     *bookapp.Commands
+	bookshelfQueries *bookshelfapp.Queries
+	bookshelfCommands *bookshelfapp.Commands
 	categoryQueries  *categoryapp.Queries
 	categoryCommands *categoryapp.Commands
 	siteQueries      *siteapp.Queries
@@ -40,6 +43,8 @@ type Handler struct {
 	tokens           *jwt.Manager
 	maxUploadBytes   int64
 	maxIconBytes     int64
+	maxAvatarBytes   int64
+	avatarDir        string
 	coverDir         string
 	siteIconDir      string
 	defaultCover     string
@@ -49,12 +54,14 @@ type contextKey string
 
 const actorKey contextKey = "actor"
 
-func New(identityQueries *identityapp.Queries, identityCommands *identityapp.Commands, bookQueries *bookapp.Queries, bookCommands *bookapp.Commands, categoryQueries *categoryapp.Queries, categoryCommands *categoryapp.Commands, siteQueries *siteapp.Queries, siteCommands *siteapp.Commands, uploadSvc *uploadapp.Service, tokens *jwt.Manager, maxUploadBytes int64, maxIconBytes int64, coverDir string, siteIconDir string, defaultCover string) *Handler {
+func New(identityQueries *identityapp.Queries, identityCommands *identityapp.Commands, bookQueries *bookapp.Queries, bookCommands *bookapp.Commands, bookshelfQueries *bookshelfapp.Queries, bookshelfCommands *bookshelfapp.Commands, categoryQueries *categoryapp.Queries, categoryCommands *categoryapp.Commands, siteQueries *siteapp.Queries, siteCommands *siteapp.Commands, uploadSvc *uploadapp.Service, tokens *jwt.Manager, maxUploadBytes int64, maxIconBytes int64, avatarDir string, maxAvatarBytes int64, coverDir string, siteIconDir string, defaultCover string) *Handler {
 	return &Handler{
 		identityQueries:  identityQueries,
 		identityCommands: identityCommands,
 		bookQueries:      bookQueries,
 		bookCommands:     bookCommands,
+		bookshelfQueries: bookshelfQueries,
+		bookshelfCommands: bookshelfCommands,
 		categoryQueries:  categoryQueries,
 		categoryCommands: categoryCommands,
 		siteQueries:      siteQueries,
@@ -63,6 +70,8 @@ func New(identityQueries *identityapp.Queries, identityCommands *identityapp.Com
 		tokens:           tokens,
 		maxUploadBytes:   maxUploadBytes,
 		maxIconBytes:     maxIconBytes,
+		maxAvatarBytes:   maxAvatarBytes,
+		avatarDir:        avatarDir,
 		coverDir:         coverDir,
 		siteIconDir:      siteIconDir,
 		defaultCover:     strings.TrimSpace(defaultCover),
@@ -78,6 +87,7 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("POST /api/auth/login", h.Login)
 	mux.HandleFunc("GET /api/auth/me", h.requireAuth(h.requireFront(h.Me)))
 	mux.HandleFunc("PATCH /api/auth/me", h.requireAuth(h.requireFront(h.UpdateMe)))
+	mux.HandleFunc("POST /api/auth/me/avatar", h.requireAuth(h.requireFront(h.UploadAvatar)))
 	mux.HandleFunc("PATCH /api/auth/password", h.requireAuth(h.requireFront(h.ChangePassword)))
 	mux.HandleFunc("POST /api/admin/auth/login", h.AdminLogin)
 	mux.HandleFunc("GET /api/admin/auth/me", h.requireAuth(h.requireAdminScope(h.AdminMe)))
@@ -93,9 +103,20 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("GET /api/books/{bookId}/chapters/{chapterId}", h.requireAuth(h.ChapterDetail))
 	mux.HandleFunc("GET /api/books/{bookId}/cover", h.BookCover)
 	mux.HandleFunc("POST /api/books/{bookId}/cover", h.requireAuth(h.requireAuthor(h.UploadBookCover)))
+	mux.HandleFunc("GET /api/users/{userId}/avatar", h.UserAvatar)
 	mux.HandleFunc("GET /api/me/books", h.requireAuth(h.requireAuthor(h.MyBooks)))
 	mux.HandleFunc("POST /api/me/books", h.requireAuth(h.requireAuthor(h.CreateMyBook)))
 	mux.HandleFunc("POST /api/me/books/upload", h.requireAuth(h.requireAuthor(h.UploadBook)))
+	mux.HandleFunc("GET /api/me/bookshelf", h.requireAuth(h.requireFront(h.ListMyBookshelf)))
+	mux.HandleFunc("GET /api/me/bookshelf/groups", h.requireAuth(h.requireFront(h.ListMyBookshelfGroups)))
+	mux.HandleFunc("POST /api/me/bookshelf/groups", h.requireAuth(h.requireFront(h.CreateMyBookshelfGroup)))
+	mux.HandleFunc("PATCH /api/me/bookshelf/groups/{groupId}", h.requireAuth(h.requireFront(h.UpdateMyBookshelfGroup)))
+	mux.HandleFunc("DELETE /api/me/bookshelf/groups/{groupId}", h.requireAuth(h.requireFront(h.DeleteMyBookshelfGroup)))
+	mux.HandleFunc("GET /api/me/bookshelf/{bookId}", h.requireAuth(h.requireFront(h.GetMyBookshelfBook)))
+	mux.HandleFunc("POST /api/me/bookshelf/{bookId}", h.requireAuth(h.requireFront(h.AddMyBookshelfBook)))
+	mux.HandleFunc("PATCH /api/me/bookshelf/{bookId}", h.requireAuth(h.requireFront(h.UpdateMyBookshelfBook)))
+	mux.HandleFunc("DELETE /api/me/bookshelf/{bookId}", h.requireAuth(h.requireFront(h.RemoveMyBookshelfBook)))
+	mux.HandleFunc("POST /api/me/bookshelf/batch", h.requireAuth(h.requireFront(h.BatchManageMyBookshelf)))
 	mux.HandleFunc("PATCH /api/books/{bookId}", h.requireAuth(h.requireAuthor(h.UpdateBook)))
 	mux.HandleFunc("DELETE /api/books/{bookId}", h.requireAuth(h.requireAuthor(h.DeleteBook)))
 	mux.HandleFunc("POST /api/books/{bookId}/chapters", h.requireAuth(h.requireAuthor(h.AddChapter)))
@@ -908,7 +929,15 @@ func writeError(w http.ResponseWriter, err error) {
 }
 
 func publicUser(user identityentity.User) map[string]any {
-	return map[string]any{"id": user.ID, "username": user.Username, "nickname": user.Nickname, "role": user.Role}
+	return map[string]any{"id": user.ID, "username": user.Username, "nickname": user.Nickname, "role": user.Role, "avatarUrl": publicAvatarURL(user)}
+}
+
+func publicAvatarURL(user identityentity.User) string {
+	url := "/api/users/" + strconv.FormatInt(user.ID, 10) + "/avatar"
+	if !user.UpdatedAt.IsZero() {
+		url += "?v=" + strconv.FormatInt(user.UpdatedAt.UnixMilli(), 10)
+	}
+	return url
 }
 
 func publicOperator(operator identityentity.Operator) map[string]any {

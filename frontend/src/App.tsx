@@ -8,6 +8,7 @@ import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { ReaderPage } from "./pages/ReaderPage";
+import { BookshelfPage } from "./pages/BookshelfPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { SearchPage } from "./pages/SearchPage";
 import { useAuth } from "./auth/AuthContext";
@@ -92,6 +93,14 @@ export function App() {
         <Route path="search" element={<SearchPage />} />
         <Route path="books/:bookId" element={<BookDetailPage />} />
         <Route path="books/:bookId/chapters/:chapterId" element={<ReaderPage />} />
+        <Route
+          path="bookshelf"
+          element={
+            <FrontAuthRoute>
+              <BookshelfPage />
+            </FrontAuthRoute>
+          }
+        />
         <Route
           path="account"
           element={

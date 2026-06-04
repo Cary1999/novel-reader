@@ -14,6 +14,7 @@ import (
 	"gorm.io/gorm"
 
 	bookapp "novel-reader/backend/internal/application/book"
+	bookshelfapp "novel-reader/backend/internal/application/bookshelf"
 	categoryapp "novel-reader/backend/internal/application/category"
 	identityapp "novel-reader/backend/internal/application/identity"
 	siteapp "novel-reader/backend/internal/application/site"
@@ -72,20 +73,23 @@ func main() {
 	tokenManager := jwt.NewManager([]byte(cfg.JWTSecret), cfg.TokenTTL)
 	uploadStore := local.NewStore(cfg.UploadDir, cfg.MaxUploadBytes)
 	coverStore := local.NewStore(cfg.CoverDir, cfg.MaxCoverBytes)
+	avatarStore := local.NewStore(cfg.AvatarDir, cfg.MaxAvatarBytes)
 	siteIconStore := local.NewStore(filepath.Join(cfg.CoverDir, "site"), cfg.MaxCoverBytes)
 	parser := txt.NewParser()
 
 	identityQueries := identityapp.NewQueries(store, store, store)
-	identityCommands := identityapp.NewCommands(store, store, store, tokenManager, tokenManager)
+	identityCommands := identityapp.NewCommands(store, store, store, tokenManager, tokenManager, avatarStore)
 	bookQueries := bookapp.NewQueries(store)
 	bookCommands := bookapp.NewCommands(store, store)
+	bookshelfQueries := bookshelfapp.NewQueries(store)
+	bookshelfCommands := bookshelfapp.NewCommands(store)
 	categoryQueries := categoryapp.NewQueries(store)
 	categoryCommands := categoryapp.NewCommands(store)
 	siteQueries := siteapp.NewQueries(store)
 	siteCommands := siteapp.NewCommands(store, siteIconStore)
 	uploadSvc := uploadapp.NewService(store, store, store, uploadStore, coverStore, parser)
 
-	handler := httpapi.New(identityQueries, identityCommands, bookQueries, bookCommands, categoryQueries, categoryCommands, siteQueries, siteCommands, uploadSvc, tokenManager, cfg.MaxUploadBytes, cfg.MaxCoverBytes, cfg.CoverDir, filepath.Join(cfg.CoverDir, "site"), cfg.DefaultCoverFile)
+	handler := httpapi.New(identityQueries, identityCommands, bookQueries, bookCommands, bookshelfQueries, bookshelfCommands, categoryQueries, categoryCommands, siteQueries, siteCommands, uploadSvc, tokenManager, cfg.MaxUploadBytes, cfg.MaxCoverBytes, cfg.AvatarDir, cfg.MaxAvatarBytes, cfg.CoverDir, filepath.Join(cfg.CoverDir, "site"), cfg.DefaultCoverFile)
 
 	httpSrv := khttp.NewServer(khttp.Address(cfg.HTTPAddr), khttp.Timeout(15*time.Second))
 	httpSrv.HandlePrefix("/", handler.Routes())

@@ -2,6 +2,14 @@ import type {
   AdminLoginResponse,
   AuthorApplication,
   BookDetail,
+  BookshelfBatchInput,
+  BookshelfBookInput,
+  BookshelfEntry,
+  BookshelfEntryListResponse,
+  BookshelfEntryQueryParams,
+  BookshelfGroup,
+  BookshelfGroupInput,
+  BookshelfGroupListResponse,
   BookMetadataInput,
   Category,
   ChapterDetail,
@@ -157,6 +165,15 @@ export const apiClient = {
     });
   },
 
+  uploadAvatar(file: File) {
+    const formData = new FormData();
+    formData.set("file", file);
+    return frontRequest<CurrentUser>("/api/auth/me/avatar", {
+      method: "POST",
+      body: formData,
+    });
+  },
+
   changePassword(oldPassword: string, newPassword: string) {
     return frontRequest<{ changed: boolean }>("/api/auth/password", {
       method: "PATCH",
@@ -227,6 +244,69 @@ export const apiClient = {
 
   chapter(bookId: string | number, chapterId: string | number) {
     return frontRequest<ChapterDetail>(`/api/books/${bookId}/chapters/${chapterId}`);
+  },
+
+  bookshelfGroups() {
+    return frontRequest<BookshelfGroupListResponse>("/api/me/bookshelf/groups");
+  },
+
+  createBookshelfGroup(input: BookshelfGroupInput) {
+    return frontRequest<BookshelfGroup>("/api/me/bookshelf/groups", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
+
+  updateBookshelfGroup(groupId: string | number, input: BookshelfGroupInput) {
+    return frontRequest<BookshelfGroup>(`/api/me/bookshelf/groups/${groupId}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    });
+  },
+
+  deleteBookshelfGroup(groupId: string | number) {
+    return frontRequest<{ deleted: boolean }>(`/api/me/bookshelf/groups/${groupId}`, {
+      method: "DELETE",
+    });
+  },
+
+  bookshelf(params: BookshelfEntryQueryParams = {}) {
+    return frontRequest<BookshelfEntryListResponse>("/api/me/bookshelf", {}, {
+      groupId: params.groupId,
+      page: params.page,
+      pageSize: params.pageSize,
+    });
+  },
+
+  bookshelfEntry(bookId: string | number) {
+    return frontRequest<BookshelfEntry>(`/api/me/bookshelf/${bookId}`);
+  },
+
+  addToBookshelf(bookId: string | number, input: BookshelfBookInput = {}) {
+    return frontRequest<BookshelfEntry>(`/api/me/bookshelf/${bookId}`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
+
+  updateBookshelfBook(bookId: string | number, input: BookshelfBookInput = {}) {
+    return frontRequest<BookshelfEntry>(`/api/me/bookshelf/${bookId}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    });
+  },
+
+  removeFromBookshelf(bookId: string | number) {
+    return frontRequest<{ deleted: boolean }>(`/api/me/bookshelf/${bookId}`, {
+      method: "DELETE",
+    });
+  },
+
+  batchManageBookshelf(input: BookshelfBatchInput) {
+    return frontRequest<{ updated: boolean }>("/api/me/bookshelf/batch", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
   },
 
   uploadBook(input: UploadBookInput) {

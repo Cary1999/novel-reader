@@ -7,6 +7,7 @@ export function AccountPage() {
   const { isAuthor, isReader, user, refreshUser } = useAuth();
   const frontUser = user && "nickname" in user ? user : null;
   const [nickname, setNickname] = useState(frontUser?.nickname ?? frontUser?.username ?? "");
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [penName, setPenName] = useState("");
@@ -14,6 +15,7 @@ export function AccountPage() {
   const [application, setApplication] = useState<AuthorApplication | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [isSavingAvatar, setIsSavingAvatar] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [isSubmittingApplication, setIsSubmittingApplication] = useState(false);
@@ -51,6 +53,26 @@ export function AccountPage() {
       setError(err instanceof ApiError ? err.message : "昵称保存失败");
     } finally {
       setIsSavingProfile(false);
+    }
+  }
+
+  async function saveAvatar(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!avatarFile) {
+      setError("请选择头像文件");
+      return;
+    }
+    try {
+      setIsSavingAvatar(true);
+      setError("");
+      await apiClient.uploadAvatar(avatarFile);
+      await refreshUser();
+      setAvatarFile(null);
+      setMessage("头像已更新");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "头像上传失败");
+    } finally {
+      setIsSavingAvatar(false);
     }
   }
 
@@ -110,6 +132,20 @@ export function AccountPage() {
       {error ? <p className="form-error">{error}</p> : null}
 
       <section className="settings-grid">
+        <form className="panel form-stack" onSubmit={saveAvatar}>
+          <p className="eyebrow">头像</p>
+          <div className="avatar-preview">
+            {frontUser?.avatarUrl ? <img src={frontUser.avatarUrl} alt="" /> : null}
+          </div>
+          <label>
+            上传头像
+            <input type="file" accept=".jpg,.jpeg,.png,.webp" onChange={(event) => setAvatarFile(event.target.files?.[0] ?? null)} />
+          </label>
+          <button className="primary-button compact" type="submit" disabled={isSavingAvatar}>
+            {isSavingAvatar ? "上传中..." : "更新头像"}
+          </button>
+        </form>
+
         <form className="panel form-stack" onSubmit={saveProfile}>
           <p className="eyebrow">资料</p>
           <label>

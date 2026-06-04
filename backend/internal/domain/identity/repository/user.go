@@ -11,8 +11,10 @@ type UserRepository interface {
 	CreateUser(ctx context.Context, username, passwordHash string, role shared.Role) (identityentity.User, error)
 	FindUserByUsername(ctx context.Context, username string) (identityentity.User, error)
 	FindUserByID(ctx context.Context, id int64) (identityentity.User, error)
+	FindUserAvatarByID(ctx context.Context, id int64) (string, error)
 	ListUsers(ctx context.Context) ([]identityentity.FrontUserSummary, error)
 	UpdateUserNickname(ctx context.Context, id int64, nickname string) (identityentity.User, error)
+	UpdateUserAvatar(ctx context.Context, id int64, avatarPath string) (identityentity.User, error)
 	UpdateUserPassword(ctx context.Context, id int64, passwordHash string) error
 	PromoteUserToAuthor(ctx context.Context, id int64) (identityentity.User, error)
 }

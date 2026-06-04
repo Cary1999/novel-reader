@@ -42,7 +42,7 @@ docker compose up
 
 - `make test`：已通过。
 - `npm run build`：已通过。
-- `make smoke`：已通过，覆盖健康检查、分类、搜索、搜索空结果、注册、登录、当前用户、昵称修改、密码修改、普通用户上传、普通用户作品管理、管理员 `.txt` 上传、后台书籍管理、章节新增/修改/删除、整本删除和管理员分类管理。
+- `make smoke`：已通过，覆盖健康检查、分类、搜索、搜索空结果、注册、登录、当前用户、昵称修改、密码修改、头像上传、作者角色升级、普通用户上传、普通用户作品管理、书架分组/置顶/批量管理和管理员分类管理。
 - `make docker-build`：已通过。
 - 上传大小限制为 50MB 的版本已通过 `BASE_URL=http://localhost:8001 make smoke` 验证。
 - 后台小说和章节管理版本已通过 `BASE_URL=http://localhost:8001 make smoke` 验证。
@@ -68,8 +68,9 @@ cd frontend && npm run dev
 
 补充说明：
 
-- 本地从 `backend/` 目录执行 `go run ./cmd/server` 时，默认相对存储目录会自动解析到仓库根目录下的 `data/uploads` 与 `data/uploads/covers`，与 Docker 运行时保持一致。
-- 如需自定义位置，显式设置 `UPLOAD_DIR` 和 `COVER_DIR` 即可。
+- 本地从 `backend/` 目录执行 `go run ./cmd/server` 时，默认相对存储目录会自动解析到仓库根目录下的 `data/uploads`、`data/uploads/covers` 和 `data/uploads/avatars`，与 Docker 运行时保持一致。
+- 如需自定义位置，显式设置 `UPLOAD_DIR`、`COVER_DIR` 和 `AVATAR_DIR` 即可。
+- 头像大小限制由 `MAX_AVATAR_BYTES` 控制，默认 5MB。
 - Phase 10 目标端口规划：
   - 读者端：`3000`
   - 作者端：`3001`

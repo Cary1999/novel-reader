@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	identitycommand "novel-reader/backend/internal/application/identity/command"
 	sitecommand "novel-reader/backend/internal/application/site/command"
 	uploadapp "novel-reader/backend/internal/application/upload"
 )
@@ -77,6 +78,36 @@ func (s *Store) SaveCover(originalName string, reader io.Reader) (uploadapp.Save
 		return uploadapp.SavedFile{}, err
 	}
 	return uploadapp.SavedFile{RelativePath: filename, Size: int64(len(data))}, nil
+}
+
+func (s *Store) SaveAvatar(originalName string, reader io.Reader) (identitycommand.SavedAvatar, error) {
+	ext := strings.ToLower(filepath.Ext(originalName))
+	switch ext {
+	case ".jpg", ".jpeg", ".png", ".webp":
+	default:
+		return identitycommand.SavedAvatar{}, fmt.Errorf("invalid file type")
+	}
+
+	data, err := io.ReadAll(io.LimitReader(reader, s.maxBytes+1))
+	if err != nil {
+		return identitycommand.SavedAvatar{}, err
+	}
+	if int64(len(data)) > s.maxBytes {
+		return identitycommand.SavedAvatar{}, fmt.Errorf("file too large")
+	}
+	if len(data) == 0 {
+		return identitycommand.SavedAvatar{}, fmt.Errorf("empty file")
+	}
+
+	if err := os.MkdirAll(s.dir, 0o755); err != nil {
+		return identitycommand.SavedAvatar{}, err
+	}
+	filename := time.Now().UTC().Format("20060102T150405Z") + "-" + randomSuffix() + ext
+	fullPath := filepath.Join(s.dir, filename)
+	if err := os.WriteFile(fullPath, data, 0o600); err != nil {
+		return identitycommand.SavedAvatar{}, err
+	}
+	return identitycommand.SavedAvatar{RelativePath: filename, Size: int64(len(data))}, nil
 }
 
 func (s *Store) SaveSiteIcon(originalName string, reader io.Reader) (sitecommand.SavedIcon, error) {

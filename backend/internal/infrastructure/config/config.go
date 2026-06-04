@@ -22,8 +22,10 @@ type Config struct {
 	GeneratedSuperAdminPassword bool
 	UploadDir                   string
 	CoverDir                    string
+	AvatarDir                   string
 	MaxUploadBytes              int64
 	MaxCoverBytes               int64
+	MaxAvatarBytes              int64
 	DefaultCoverFile            string
 	DBMaxOpenConns              int
 	DBMaxIdleConns              int
@@ -35,9 +37,11 @@ func Load() (Config, error) {
 		SuperAdminUsername: env("SUPER_ADMIN_USERNAME", env("ADMIN_USERNAME", "admin")),
 		UploadDir:          resolveProjectPath(env("UPLOAD_DIR", "data/uploads")),
 		CoverDir:           resolveProjectPath(env("COVER_DIR", "data/uploads/covers")),
+		AvatarDir:          resolveProjectPath(env("AVATAR_DIR", "data/uploads/avatars")),
 		MaxUploadBytes:     envInt64("MAX_UPLOAD_BYTES", 50*1024*1024),
 		MaxCoverBytes:      envInt64("MAX_COVER_BYTES", 10*1024*1024),
-		DefaultCoverFile:   env("DEFAULT_COVER_FILE", ""),
+		MaxAvatarBytes:     envInt64("MAX_AVATAR_BYTES", 5*1024*1024),
+		DefaultCoverFile:   env("DEFAULT_COVER_FILE", "base.jpeg"),
 		DBMaxOpenConns:     envInt("DB_MAX_OPEN_CONNS", 10),
 		DBMaxIdleConns:     envInt("DB_MAX_IDLE_CONNS", 5),
 	}

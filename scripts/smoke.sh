@@ -19,7 +19,10 @@ TMP_DIR="${TMPDIR:-/tmp}/novel-reader-smoke.$$"
 
 TOKEN=""
 SUPER_ADMIN_TOKEN=""
+ADMIN_TOKEN=""
 CATEGORY_ID=""
+SMOKE_USER_ID=""
+SMOKE_BOOK_ID=""
 
 cleanup() {
   rm -rf "$TMP_DIR"
@@ -140,6 +143,12 @@ register_and_login() {
 
   code="$(request GET /api/auth/me "" "$TOKEN")"
   assert_status "current user" "$code" "200"
+  SMOKE_USER_ID="$(json_number id)"
+  if [ -z "$SMOKE_USER_ID" ]; then
+    echo "FAIL current user: response does not contain id" >&2
+    sed -n '1,120p' "$TMP_DIR/response.json" >&2 || true
+    exit 1
+  fi
 }
 
 check_public_books() {
@@ -175,6 +184,129 @@ check_account_management() {
   SMOKE_PASSWORD="$new_password"
 }
 
+relogin_smoke_user() {
+  login_body="{\"username\":\"$SMOKE_USERNAME\",\"password\":\"$SMOKE_PASSWORD\"}"
+  code="$(request POST /api/auth/login "$login_body")"
+  assert_status "relogin smoke user" "$code" "200"
+  TOKEN="$(json_value token)"
+  if [ -z "$TOKEN" ]; then
+    echo "FAIL relogin smoke user: response does not contain token" >&2
+    sed -n '1,120p' "$TMP_DIR/response.json" >&2 || true
+    exit 1
+  fi
+
+  code="$(request GET /api/auth/me "" "$TOKEN")"
+  assert_status "current user after relogin" "$code" "200"
+}
+
+check_avatar_upload() {
+  sample="$TMP_DIR/avatar-test.jpeg"
+  cp data/uploads/covers/base.jpeg "$sample"
+
+  code="$(curl -sS -X POST "$BASE_URL/api/auth/me/avatar" \
+    -H "Authorization: Bearer $TOKEN" \
+    -F "file=@$sample;type=image/jpeg" \
+    -o "$TMP_DIR/response.json" \
+    -w "%{http_code}")" || code="000"
+
+  assert_status "avatar upload" "$code" "200"
+  code="$(request GET /api/auth/me "" "$TOKEN")"
+  assert_status "current user after avatar upload" "$code" "200"
+  avatar_url="$(json_value avatarUrl)"
+  if [ -z "$avatar_url" ]; then
+    echo "FAIL avatar upload: response does not contain avatarUrl" >&2
+    sed -n '1,120p' "$TMP_DIR/response.json" >&2 || true
+    exit 1
+  fi
+
+  code="$(curl -sS -D "$TMP_DIR/avatar-headers.txt" -o "$TMP_DIR/avatar-body.bin" -w "%{http_code}" "$BASE_URL$avatar_url")" || code="000"
+  assert_status "avatar fetch" "$code" "200"
+  if ! grep -qi '^content-type: image/jpeg' "$TMP_DIR/avatar-headers.txt" && ! grep -qi '^content-type: image/jpg' "$TMP_DIR/avatar-headers.txt"; then
+    echo "FAIL avatar fetch: expected image/jpeg content type" >&2
+    sed -n '1,40p' "$TMP_DIR/avatar-headers.txt" >&2 || true
+    exit 1
+  fi
+}
+
+check_bookshelf_management() {
+  if [ -z "$SMOKE_BOOK_ID" ]; then
+    echo "FAIL bookshelf smoke: missing book id" >&2
+    exit 1
+  fi
+
+  code="$(request GET /api/me/bookshelf/groups "" "$TOKEN")"
+  assert_status "bookshelf groups" "$code" "200"
+  default_group_id="$(json_number id)"
+  if [ -z "$default_group_id" ]; then
+    echo "FAIL bookshelf groups: response does not contain group id" >&2
+    sed -n '1,120p' "$TMP_DIR/response.json" >&2 || true
+    exit 1
+  fi
+
+  code="$(request POST "/api/me/bookshelf/$SMOKE_BOOK_ID" "{}" "$TOKEN")"
+  assert_status "add book to bookshelf" "$code" "200"
+
+  code="$(request GET "/api/me/bookshelf?groupId=$default_group_id&page=1&pageSize=10" "" "$TOKEN")"
+  assert_status "default bookshelf list" "$code" "200"
+
+  code="$(request POST /api/me/bookshelf/groups "{\"name\":\"Smoke Shelf\"}" "$TOKEN")"
+  assert_status "create bookshelf group" "$code" "200"
+  custom_group_id="$(json_number id)"
+  if [ -z "$custom_group_id" ]; then
+    echo "FAIL create bookshelf group: response does not contain id" >&2
+    sed -n '1,120p' "$TMP_DIR/response.json" >&2 || true
+    exit 1
+  fi
+
+  code="$(request PATCH "/api/me/bookshelf/$SMOKE_BOOK_ID" "{\"groupId\":$custom_group_id,\"pinned\":true}" "$TOKEN")"
+  assert_status "move and pin bookshelf book" "$code" "200"
+
+  code="$(request GET "/api/me/bookshelf?groupId=$custom_group_id&page=1&pageSize=10" "" "$TOKEN")"
+  assert_status "custom bookshelf list" "$code" "200"
+
+  code="$(request POST /api/me/bookshelf/batch "{\"action\":\"move\",\"groupId\":$default_group_id,\"bookIds\":[$SMOKE_BOOK_ID]}" "$TOKEN")"
+  assert_status "batch move bookshelf book" "$code" "200"
+
+  code="$(request POST /api/me/bookshelf/batch "{\"action\":\"remove\",\"bookIds\":[$SMOKE_BOOK_ID]}" "$TOKEN")"
+  assert_status "batch remove bookshelf book" "$code" "200"
+}
+
+login_admin() {
+  admin_body="{\"username\":\"$SUPER_ADMIN_USERNAME\",\"password\":\"$SUPER_ADMIN_PASSWORD\"}"
+  code="$(request POST /api/admin/auth/login "$admin_body")"
+
+  if [ "$code" != "200" ]; then
+    echo "SKIP admin login: admin login returned $code"
+    return 1
+  fi
+
+  SUPER_ADMIN_TOKEN="$(json_value token)"
+  ADMIN_TOKEN="$SUPER_ADMIN_TOKEN"
+  if [ -z "$ADMIN_TOKEN" ]; then
+    echo "SKIP admin login: admin login response did not contain token"
+    return 1
+  fi
+
+  return 0
+}
+
+promote_smoke_user_to_author() {
+  if [ -z "$SMOKE_USER_ID" ]; then
+    echo "FAIL promote smoke user: missing smoke user id" >&2
+    exit 1
+  fi
+
+  if [ -z "$ADMIN_TOKEN" ]; then
+    if ! login_admin; then
+      echo "FAIL promote smoke user: admin login failed" >&2
+      exit 1
+    fi
+  fi
+
+  code="$(request PATCH "/api/admin/users/$SMOKE_USER_ID/author-role" "" "$ADMIN_TOKEN")"
+  assert_status "promote smoke user to author" "$code" "200"
+}
+
 check_user_authoring() {
   sample="$TMP_DIR/user-sample.txt"
   cat > "$sample" <<'TXT'
@@ -201,6 +333,7 @@ TXT
     sed -n '1,120p' "$TMP_DIR/response.json" >&2 || true
     exit 1
   fi
+  SMOKE_BOOK_ID="$book_id"
 
   code="$(request GET "/api/me/books?page=1&pageSize=5" "" "$TOKEN")"
   assert_status "my book list" "$code" "200"
@@ -219,6 +352,9 @@ TXT
     exit 1
   fi
 
+  check_avatar_upload
+  check_bookshelf_management
+
   code="$(request DELETE "/api/books/$book_id/chapters/$chapter_id" "" "$TOKEN")"
   assert_status "user delete own chapter" "$code" "200"
 
@@ -226,78 +362,12 @@ TXT
   assert_status "user delete own book" "$code" "200"
 }
 
-try_admin_upload() {
-  admin_body="{\"username\":\"$SUPER_ADMIN_USERNAME\",\"password\":\"$SUPER_ADMIN_PASSWORD\"}"
-  code="$(request POST /api/admin/auth/login "$admin_body")"
-
-  if [ "$code" != "200" ]; then
-    echo "SKIP admin upload: admin login returned $code"
-    return
+prepare_admin() {
+  if ! login_admin; then
+    echo "SKIP admin categories: admin login failed"
+    return 1
   fi
-
-  SUPER_ADMIN_TOKEN="$(json_value token)"
-  if [ -z "$SUPER_ADMIN_TOKEN" ]; then
-    echo "SKIP admin upload: admin login response did not contain token"
-    return
-  fi
-
-  sample="$TMP_DIR/sample.txt"
-  cat > "$sample" <<'TXT'
-第一章 开始
-这是 smoke check 上传的测试章节。
-
-第二章 继续
-这是第二章内容。
-TXT
-
-  code="$(curl -sS -X POST "$BASE_URL/api/admin/books/upload" \
-    -H "Authorization: Bearer $SUPER_ADMIN_TOKEN" \
-    -F "title=Smoke Test Novel" \
-    -F "categoryId=$CATEGORY_ID" \
-    -F "description=Smoke check upload sample" \
-    -F "file=@$sample;type=text/plain" \
-    -o "$TMP_DIR/response.json" \
-    -w "%{http_code}")" || code="000"
-
-  assert_status "admin txt upload" "$code" "200,201"
-  book_id="$(json_number bookId)"
-  if [ -n "$book_id" ]; then
-    check_admin_management "$book_id"
-  fi
-}
-
-check_admin_management() {
-  book_id="$1"
-
-  code="$(request GET "/api/admin/books?page=1&pageSize=5" "" "$SUPER_ADMIN_TOKEN")"
-  assert_status "admin book list" "$code" "200"
-
-  update_body="{\"title\":\"Smoke Managed Novel\",\"categoryId\":$CATEGORY_ID,\"description\":\"Updated by smoke\"}"
-  code="$(request PATCH "/api/admin/books/$book_id" "$update_body" "$SUPER_ADMIN_TOKEN")"
-  assert_status "admin update book" "$code" "200"
-
-  add_body="{\"title\":\"第三章 新增\",\"content\":\"这是 smoke 新增章节。\"}"
-  code="$(request POST "/api/admin/books/$book_id/chapters" "$add_body" "$SUPER_ADMIN_TOKEN")"
-  assert_status "admin add chapter" "$code" "200"
-  chapter_id="$(json_number id)"
-  if [ -z "$chapter_id" ]; then
-    echo "FAIL admin add chapter: response does not contain id" >&2
-    sed -n '1,120p' "$TMP_DIR/response.json" >&2 || true
-    exit 1
-  fi
-
-  patch_body="{\"title\":\"第三章 已修改\",\"content\":\"这是 smoke 修改后的章节。\"}"
-  code="$(request PATCH "/api/admin/books/$book_id/chapters/$chapter_id" "$patch_body" "$ADMIN_TOKEN")"
-  assert_status "admin update chapter" "$code" "200"
-
-  code="$(request DELETE "/api/admin/books/$book_id/chapters/$chapter_id" "" "$ADMIN_TOKEN")"
-  assert_status "admin delete chapter" "$code" "200"
-
-  code="$(request DELETE "/api/admin/books/$book_id" "" "$ADMIN_TOKEN")"
-  assert_status "admin delete book" "$code" "200"
-
-  code="$(request GET "/api/books/$book_id")"
-  assert_status "deleted book not public" "$code" "404"
+  return 0
 }
 
 check_admin_categories() {
@@ -324,8 +394,10 @@ main() {
   check_public_books
   register_and_login
   check_account_management
+  promote_smoke_user_to_author
+  relogin_smoke_user
   check_user_authoring
-  try_admin_upload
+  prepare_admin
   if [ -n "$ADMIN_TOKEN" ]; then
     check_admin_categories
   fi

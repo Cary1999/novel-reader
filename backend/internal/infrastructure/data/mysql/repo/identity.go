@@ -34,9 +34,9 @@ func (r IdentityRepository) CreateUser(ctx context.Context, username, passwordHa
 func (r IdentityRepository) FindUserByUsername(ctx context.Context, username string) (identityentity.User, error) {
 	var record model.User
 	err := r.db.QueryRowContext(ctx, `
-		SELECT id, username, nickname, password_hash, role, created_at, updated_at
+		SELECT id, username, nickname, avatar_path, password_hash, role, created_at, updated_at
 		FROM users WHERE username = ?
-	`, username).Scan(&record.ID, &record.Username, &record.Nickname, &record.PasswordHash, &record.Role, &record.CreatedAt, &record.UpdatedAt)
+	`, username).Scan(&record.ID, &record.Username, &record.Nickname, &record.AvatarPath, &record.PasswordHash, &record.Role, &record.CreatedAt, &record.UpdatedAt)
 	if err != nil {
 		return identityentity.User{}, mapNotFound(err)
 	}
@@ -46,9 +46,9 @@ func (r IdentityRepository) FindUserByUsername(ctx context.Context, username str
 func (r IdentityRepository) FindUserByID(ctx context.Context, id int64) (identityentity.User, error) {
 	var record model.User
 	err := r.db.QueryRowContext(ctx, `
-		SELECT id, username, nickname, password_hash, role, created_at, updated_at
+		SELECT id, username, nickname, avatar_path, password_hash, role, created_at, updated_at
 		FROM users WHERE id = ?
-	`, id).Scan(&record.ID, &record.Username, &record.Nickname, &record.PasswordHash, &record.Role, &record.CreatedAt, &record.UpdatedAt)
+	`, id).Scan(&record.ID, &record.Username, &record.Nickname, &record.AvatarPath, &record.PasswordHash, &record.Role, &record.CreatedAt, &record.UpdatedAt)
 	if err != nil {
 		return identityentity.User{}, mapNotFound(err)
 	}
@@ -115,6 +115,33 @@ func (r IdentityRepository) UpdateUserNickname(ctx context.Context, id int64, ni
 		return identityentity.User{}, err
 	}
 	return r.FindUserByID(ctx, id)
+}
+
+func (r IdentityRepository) UpdateUserAvatar(ctx context.Context, id int64, avatarPath string) (identityentity.User, error) {
+	result, err := r.db.ExecContext(ctx, `UPDATE users SET avatar_path = ? WHERE id = ?`, avatarPath, id)
+	if err != nil {
+		return identityentity.User{}, err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return identityentity.User{}, err
+	}
+	if affected == 0 {
+		return identityentity.User{}, shared.ErrNotFound
+	}
+	return r.FindUserByID(ctx, id)
+}
+
+func (r IdentityRepository) FindUserAvatarByID(ctx context.Context, id int64) (string, error) {
+	var avatar sql.NullString
+	err := r.db.QueryRowContext(ctx, `SELECT avatar_path FROM users WHERE id = ?`, id).Scan(&avatar)
+	if err != nil {
+		return "", mapNotFound(err)
+	}
+	if !avatar.Valid {
+		return "", shared.ErrNotFound
+	}
+	return avatar.String, nil
 }
 
 func (r IdentityRepository) UpdateUserPassword(ctx context.Context, id int64, passwordHash string) error {

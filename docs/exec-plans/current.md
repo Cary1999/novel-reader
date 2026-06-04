@@ -13,6 +13,8 @@
 - 已完成：`docs/exec-plans/phase-8-backend-ddd-refactor.md`
 - 已完成：`docs/exec-plans/phase-9-site-brand-settings.md`
 - 已完成：`docs/exec-plans/phase-10-three-portals-author-application.md`
+- 已完成：`docs/exec-plans/phase-11-avatar-home-search-bookshelf.md`
+- 已完成：`docs/exec-plans/phase-12-bookshelf-group-entry-detail.md`
 
 ## 当前状态
 
@@ -40,7 +42,7 @@ Phase 2 的本轮 MVP 构建、接口和 smoke 验证已完成；浏览器视觉
 
 新需求“用户头像、首页合并搜索分页与我的书架”已完成实现并通过验收；当前确认口径为头像支持上传与展示、首页承载搜索结果且支持 `1-100` 自定义每页页数、`/search` 仅保留兼容跳转、书架支持分组/置顶/批量管理。
 
-新需求“书架分组入口化与分组详情页”已确认并进入实现；当前正式口径为书架本体承载未分组书籍、分组仅作为同级折叠入口卡片存在、不存在默认分组、分组创建与管理从批量移动流程进入，并通过独立路由展示分组详情页。
+新需求“书架分组入口化与分组详情页”已完成实现并通过验收；当前正式口径为书架本体承载未分组书籍、分组仅作为同级折叠入口卡片存在、不存在默认分组、分组创建与管理从批量移动流程进入，并通过独立路由展示分组详情页。
 
 ## 下一步
 

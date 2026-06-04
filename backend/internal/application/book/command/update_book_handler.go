@@ -48,13 +48,10 @@ func (h *UpdateBookHandler) Handle(ctx context.Context, actor shared.Actor, book
 		}
 		return bookentity.Book{}, err
 	}
-	if normalizedInput.RecommendScore != nil && actor.Role != shared.RoleAdmin {
-		return bookentity.Book{}, shared.NewError(http.StatusForbidden, "FORBIDDEN", "only admin can update recommend score")
+	if normalizedInput.RecommendScore != nil {
+		return bookentity.Book{}, shared.NewError(http.StatusForbidden, "FORBIDDEN", "recommend score is read only")
 	}
 	recommendScore := current.RecommendScore
-	if actor.Role == shared.RoleAdmin && normalizedInput.RecommendScore != nil {
-		recommendScore = *normalizedInput.RecommendScore
-	}
 	item, err := h.booksRepo.UpdateBookMetadata(ctx, bookID, h.bookService.BuildMetadata(normalizedInput.Title, normalizedInput.Description, recommendScore), categoryID)
 	if err != nil {
 		if err == shared.ErrNotFound {

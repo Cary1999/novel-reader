@@ -9,12 +9,13 @@ import (
 )
 
 type Commands struct {
-	CreateBook    *bookcommand.CreateBookHandler
-	UpdateBook    *bookcommand.UpdateBookHandler
-	DeleteBook    *bookcommand.DeleteBookHandler
-	AddChapter    *bookcommand.AddChapterHandler
-	UpdateChapter *bookcommand.UpdateChapterHandler
-	DeleteChapter *bookcommand.DeleteChapterHandler
+	CreateBook           *bookcommand.CreateBookHandler
+	UpdateBook           *bookcommand.UpdateBookHandler
+	UpdateRecommendScore *bookcommand.UpdateRecommendScoreHandler
+	DeleteBook           *bookcommand.DeleteBookHandler
+	AddChapter           *bookcommand.AddChapterHandler
+	UpdateChapter        *bookcommand.UpdateChapterHandler
+	DeleteChapter        *bookcommand.DeleteChapterHandler
 }
 
 type Queries struct {
@@ -29,12 +30,13 @@ type Queries struct {
 func NewCommands(books bookrepository.BookRepository, categories categoryrepository.CategoryRepository) *Commands {
 	bookDomainService := bookservice.NewBookService(books)
 	return &Commands{
-		CreateBook:    bookcommand.NewCreateBookHandler(books, bookDomainService, categories),
-		UpdateBook:    bookcommand.NewUpdateBookHandler(books, bookDomainService, categories),
-		DeleteBook:    bookcommand.NewDeleteBookHandler(books, bookDomainService),
-		AddChapter:    bookcommand.NewAddChapterHandler(books, bookDomainService),
-		UpdateChapter: bookcommand.NewUpdateChapterHandler(books, bookDomainService),
-		DeleteChapter: bookcommand.NewDeleteChapterHandler(books, bookDomainService),
+		CreateBook:           bookcommand.NewCreateBookHandler(books, bookDomainService, categories),
+		UpdateBook:           bookcommand.NewUpdateBookHandler(books, bookDomainService, categories),
+		UpdateRecommendScore: bookcommand.NewUpdateRecommendScoreHandler(books),
+		DeleteBook:           bookcommand.NewDeleteBookHandler(books, bookDomainService),
+		AddChapter:           bookcommand.NewAddChapterHandler(books, bookDomainService),
+		UpdateChapter:        bookcommand.NewUpdateChapterHandler(books, bookDomainService),
+		DeleteChapter:        bookcommand.NewDeleteChapterHandler(books, bookDomainService),
 	}
 }
 

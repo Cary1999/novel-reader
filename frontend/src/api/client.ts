@@ -1,12 +1,16 @@
 import type {
+  AdminLoginResponse,
+  AuthorApplication,
   BookDetail,
-  CreateBookInput,
   BookMetadataInput,
   Category,
   ChapterDetail,
   ChapterInput,
   ChapterSummary,
+  CreateBookInput,
+  CurrentOperator,
   CurrentUser,
+  FrontUserSummary,
   LoginResponse,
   PagedBooks,
   RegisterResponse,
@@ -17,7 +21,6 @@ import type {
   UploadSummary,
 } from "./types";
 
-const TOKEN_KEY = "novel_reader_token";
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
 export class ApiError extends Error {
@@ -32,21 +35,26 @@ export class ApiError extends Error {
   }
 }
 
-export const tokenStore = {
-  get(): string | null {
-    try {
-      return globalThis.localStorage?.getItem(TOKEN_KEY) ?? null;
-    } catch {
-      return null;
-    }
-  },
-  set(token: string): void {
-    globalThis.localStorage?.setItem(TOKEN_KEY, token);
-  },
-  clear(): void {
-    globalThis.localStorage?.removeItem(TOKEN_KEY);
-  },
-};
+function createTokenStore(key: string) {
+  return {
+    get(): string | null {
+      try {
+        return globalThis.localStorage?.getItem(key) ?? null;
+      } catch {
+        return null;
+      }
+    },
+    set(token: string): void {
+      globalThis.localStorage?.setItem(key, token);
+    },
+    clear(): void {
+      globalThis.localStorage?.removeItem(key);
+    },
+  };
+}
+
+export const frontTokenStore = createTokenStore("novel_reader_front_token");
+export const adminTokenStore = createTokenStore("novel_reader_admin_token");
 
 function buildUrl(path: string, query?: Record<string, string | number | undefined>) {
   const params = new URLSearchParams();
@@ -75,6 +83,7 @@ async function parseJson<T>(response: Response): Promise<T> {
 
 async function request<T>(
   path: string,
+  tokenStore: ReturnType<typeof createTokenStore>,
   options: RequestInit = {},
   query?: Record<string, string | number | undefined>,
 ): Promise<T> {
@@ -96,6 +105,14 @@ async function request<T>(
   return parseJson<T>(response);
 }
 
+function frontRequest<T>(path: string, options: RequestInit = {}, query?: Record<string, string | number | undefined>) {
+  return request<T>(path, frontTokenStore, options, query);
+}
+
+function adminRequest<T>(path: string, options: RequestInit = {}, query?: Record<string, string | number | undefined>) {
+  return request<T>(path, adminTokenStore, options, query);
+}
+
 function bookJson<T extends { categoryId: string | number }>(input: T) {
   return {
     ...input,
@@ -105,49 +122,71 @@ function bookJson<T extends { categoryId: string | number }>(input: T) {
 
 export const apiClient = {
   register(username: string, password: string) {
-    return request<RegisterResponse>("/api/auth/register", {
+    return frontRequest<RegisterResponse>("/api/auth/register", {
       method: "POST",
       body: JSON.stringify({ username, password }),
     });
   },
 
   login(username: string, password: string) {
-    return request<LoginResponse>("/api/auth/login", {
+    return frontRequest<LoginResponse>("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    });
+  },
+
+  adminLogin(username: string, password: string) {
+    return adminRequest<AdminLoginResponse>("/api/admin/auth/login", {
       method: "POST",
       body: JSON.stringify({ username, password }),
     });
   },
 
   me() {
-    return request<CurrentUser>("/api/auth/me");
+    return frontRequest<CurrentUser>("/api/auth/me");
+  },
+
+  adminMe() {
+    return adminRequest<CurrentOperator>("/api/admin/auth/me");
   },
 
   updateMe(nickname: string) {
-    return request<CurrentUser>("/api/auth/me", {
+    return frontRequest<CurrentUser>("/api/auth/me", {
       method: "PATCH",
       body: JSON.stringify({ nickname }),
     });
   },
 
   changePassword(oldPassword: string, newPassword: string) {
-    return request<{ changed: boolean }>("/api/auth/password", {
+    return frontRequest<{ changed: boolean }>("/api/auth/password", {
       method: "PATCH",
       body: JSON.stringify({ oldPassword, newPassword }),
     });
   },
 
+  submitAuthorApplication(penName: string, reason: string) {
+    return frontRequest<AuthorApplication>("/api/author-applications", {
+      method: "POST",
+      body: JSON.stringify({ penName, reason }),
+    });
+  },
+
+  myAuthorApplication() {
+    return frontRequest<AuthorApplication>("/api/author-applications/me");
+  },
+
   categories() {
-    return request<{ items: Category[] }>("/api/categories");
+    return frontRequest<{ items: Category[] }>("/api/categories");
   },
 
   siteSettings() {
-    return request<SiteSettings>("/api/site-settings", {
+    return frontRequest<SiteSettings>("/api/site-settings", {
       cache: "no-store",
     });
   },
 
   updateSiteSettings(input: SiteSettingsInput) {
-    return request<SiteSettings>("/api/admin/site-settings", {
+    return adminRequest<SiteSettings>("/api/admin/site-settings", {
       method: "PATCH",
       body: JSON.stringify(input),
     });
@@ -156,14 +195,14 @@ export const apiClient = {
   uploadSiteIcon(file: File) {
     const formData = new FormData();
     formData.set("file", file);
-    return request<SiteSettings>("/api/admin/site-settings/icon", {
+    return adminRequest<SiteSettings>("/api/admin/site-settings/icon", {
       method: "POST",
       body: formData,
     });
   },
 
   searchBooks(params: SearchBooksParams = {}) {
-    return request<PagedBooks>("/api/books/search", {}, {
+    return frontRequest<PagedBooks>("/api/books/search", {}, {
       q: params.q,
       category: params.category,
       page: params.page,
@@ -172,22 +211,22 @@ export const apiClient = {
   },
 
   recommendations(params: { page?: number; pageSize?: number } = {}) {
-    return request<PagedBooks>("/api/books/recommendations", {}, {
+    return frontRequest<PagedBooks>("/api/books/recommendations", {}, {
       page: params.page,
       pageSize: params.pageSize,
     });
   },
 
   book(bookId: string | number) {
-    return request<BookDetail>(`/api/books/${bookId}`);
+    return frontRequest<BookDetail>(`/api/books/${bookId}`);
   },
 
   chapters(bookId: string | number) {
-    return request<{ items: ChapterSummary[] }>(`/api/books/${bookId}/chapters`);
+    return frontRequest<{ items: ChapterSummary[] }>(`/api/books/${bookId}/chapters`);
   },
 
   chapter(bookId: string | number, chapterId: string | number) {
-    return request<ChapterDetail>(`/api/books/${bookId}/chapters/${chapterId}`);
+    return frontRequest<ChapterDetail>(`/api/books/${bookId}/chapters/${chapterId}`);
   },
 
   uploadBook(input: UploadBookInput) {
@@ -197,36 +236,14 @@ export const apiClient = {
     formData.set("description", input.description ?? "");
     formData.set("file", input.file);
 
-    return request<UploadSummary>("/api/me/books/upload", {
+    return frontRequest<UploadSummary>("/api/me/books/upload", {
       method: "POST",
       body: formData,
-    });
-  },
-
-  adminUploadBook(input: UploadBookInput) {
-    const formData = new FormData();
-    formData.set("title", input.title);
-    formData.set("categoryId", String(input.categoryId));
-    formData.set("description", input.description ?? "");
-    formData.set("file", input.file);
-
-    return request<UploadSummary>("/api/admin/books/upload", {
-      method: "POST",
-      body: formData,
-    });
-  },
-
-  adminBooks(params: SearchBooksParams = {}) {
-    return request<PagedBooks>("/api/admin/books", {}, {
-      q: params.q,
-      category: params.category,
-      page: params.page,
-      pageSize: params.pageSize,
     });
   },
 
   myBooks(params: SearchBooksParams = {}) {
-    return request<PagedBooks>("/api/me/books", {}, {
+    return frontRequest<PagedBooks>("/api/me/books", {}, {
       q: params.q,
       categoryId: params.categoryId,
       page: params.page,
@@ -234,15 +251,15 @@ export const apiClient = {
     });
   },
 
-  createBook(input: CreateBookInput, scope: "me" | "admin" = "me") {
-    return request<BookDetail>(scope === "admin" ? "/api/admin/books" : "/api/me/books", {
+  createBook(input: CreateBookInput) {
+    return frontRequest<BookDetail>("/api/me/books", {
       method: "POST",
       body: JSON.stringify(bookJson(input)),
     });
   },
 
   updateBook(bookId: string | number, input: BookMetadataInput) {
-    return request<BookDetail>(`/api/books/${bookId}`, {
+    return frontRequest<BookDetail>(`/api/books/${bookId}`, {
       method: "PATCH",
       body: JSON.stringify(bookJson(input)),
     });
@@ -251,54 +268,110 @@ export const apiClient = {
   uploadBookCover(bookId: string | number, file: File) {
     const formData = new FormData();
     formData.set("file", file);
-    return request<{ coverUrl: string }>(`/api/books/${bookId}/cover`, {
+    return frontRequest<{ coverUrl: string }>(`/api/books/${bookId}/cover`, {
       method: "POST",
       body: formData,
     });
   },
 
   deleteBook(bookId: string | number) {
-    return request<{ deleted: boolean }>(`/api/books/${bookId}`, {
+    return frontRequest<{ deleted: boolean }>(`/api/books/${bookId}`, {
       method: "DELETE",
     });
   },
 
   addChapter(bookId: string | number, input: ChapterInput) {
-    return request<ChapterDetail>(`/api/books/${bookId}/chapters`, {
+    return frontRequest<ChapterDetail>(`/api/books/${bookId}/chapters`, {
       method: "POST",
       body: JSON.stringify(input),
     });
   },
 
   updateChapter(bookId: string | number, chapterId: string | number, input: ChapterInput) {
-    return request<ChapterDetail>(`/api/books/${bookId}/chapters/${chapterId}`, {
+    return frontRequest<ChapterDetail>(`/api/books/${bookId}/chapters/${chapterId}`, {
       method: "PATCH",
       body: JSON.stringify(input),
     });
   },
 
   deleteChapter(bookId: string | number, chapterId: string | number) {
-    return request<{ deleted: boolean }>(`/api/books/${bookId}/chapters/${chapterId}`, {
+    return frontRequest<{ deleted: boolean }>(`/api/books/${bookId}/chapters/${chapterId}`, {
       method: "DELETE",
     });
   },
 
+  listAuthorApplications() {
+    return adminRequest<{ items: AuthorApplication[] }>("/api/admin/author-applications");
+  },
+
+  adminBooks(params: SearchBooksParams = {}) {
+    return adminRequest<PagedBooks>("/api/admin/books", {}, {
+      q: params.q,
+      category: params.category,
+      page: params.page,
+      pageSize: params.pageSize,
+    });
+  },
+
+  updateRecommendScore(bookId: string | number, recommendScore: number) {
+    return adminRequest<BookDetail>(`/api/admin/books/${bookId}/recommend-score`, {
+      method: "PATCH",
+      body: JSON.stringify({ recommendScore }),
+    });
+  },
+
+  reviewAuthorApplication(applicationId: string | number, decision: "approved" | "rejected", reviewNote = "") {
+    return adminRequest<AuthorApplication>(`/api/admin/author-applications/${applicationId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ decision, reviewNote }),
+    });
+  },
+
+  listUsers() {
+    return adminRequest<{ items: FrontUserSummary[] }>("/api/admin/users");
+  },
+
+  promoteUserToAuthor(userId: string | number) {
+    return adminRequest<CurrentUser>(`/api/admin/users/${userId}/author-role`, {
+      method: "PATCH",
+      body: JSON.stringify({ action: "promote_to_author" }),
+    });
+  },
+
+  listOperators() {
+    return adminRequest<{ items: CurrentOperator[] }>("/api/admin/operators");
+  },
+
+  createOperator(username: string, password: string, role: "reviewer" | "super_admin") {
+    return adminRequest<CurrentOperator>("/api/admin/operators", {
+      method: "POST",
+      body: JSON.stringify({ username, password, role }),
+    });
+  },
+
+  updateOperator(operatorId: string | number, role: "reviewer" | "super_admin") {
+    return adminRequest<CurrentOperator>(`/api/admin/operators/${operatorId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ role }),
+    });
+  },
+
   createCategory(name: string) {
-    return request<Category>("/api/admin/categories", {
+    return adminRequest<Category>("/api/admin/categories", {
       method: "POST",
       body: JSON.stringify({ name }),
     });
   },
 
   updateCategory(categoryId: string | number, name: string) {
-    return request<Category>(`/api/admin/categories/${categoryId}`, {
+    return adminRequest<Category>(`/api/admin/categories/${categoryId}`, {
       method: "PATCH",
       body: JSON.stringify({ name }),
     });
   },
 
   deleteCategory(categoryId: string | number) {
-    return request<{ deleted: boolean }>(`/api/admin/categories/${categoryId}`, {
+    return adminRequest<{ deleted: boolean }>(`/api/admin/categories/${categoryId}`, {
       method: "DELETE",
     });
   },

@@ -80,12 +80,13 @@ npm run dev
 - `MAX_COVER_BYTES`：封面大小限制（默认 `10485760`，即 10MB）
 - `DEFAULT_COVER_FILE`：默认封面文件路径（可选）。当书籍未上传封面时，`GET /api/books/{id}/cover` 会返回该文件内容。可写绝对路径，也可写相对路径（相对 `COVER_DIR`）。
 - `JWT_SECRET`：JWT 密钥（本地也建议改掉）
-- `ADMIN_USERNAME` / `ADMIN_PASSWORD`：管理员账号密码
+- `SUPER_ADMIN_USERNAME` / `SUPER_ADMIN_PASSWORD`：后台超级管理员账号密码
 
 说明：
 
 - Compose 运行时，后端连接 MySQL 用的是容器网络地址 `mysql:3306`。
 - 前端容器通过 nginx 反向代理 `/api` 到后端；开发时（`npm run dev`）通过 Vite proxy 代理 `/api`。
+- 后端代码仍兼容读取旧的 `ADMIN_USERNAME` / `ADMIN_PASSWORD`，但新配置统一建议使用 `SUPER_ADMIN_USERNAME` / `SUPER_ADMIN_PASSWORD`。
 
 ## 常用命令
 

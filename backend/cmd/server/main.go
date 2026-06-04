@@ -34,8 +34,8 @@ func main() {
 	if cfg.GeneratedJWTSecret {
 		log.Printf("JWT_SECRET was not set; generated an in-memory development secret")
 	}
-	if cfg.GeneratedAdminPassword {
-		log.Printf("ADMIN_PASSWORD was not set; generated development admin password for username %q: %s", cfg.AdminUsername, cfg.AdminPassword)
+	if cfg.GeneratedSuperAdminPassword {
+		log.Printf("SUPER_ADMIN_PASSWORD was not set; generated development super admin password for username %q: %s", cfg.SuperAdminUsername, cfg.SuperAdminPassword)
 	}
 
 	db, err := sql.Open("mysql", cfg.DatabaseDSN)
@@ -63,8 +63,8 @@ func main() {
 		log.Fatalf("migrate mysql: %v", err)
 	}
 	if err := store.Seed(ctx, mysql.SeedOptions{
-		AdminUsername: cfg.AdminUsername,
-		AdminPassword: cfg.AdminPassword,
+		SuperAdminUsername: cfg.SuperAdminUsername,
+		SuperAdminPassword: cfg.SuperAdminPassword,
 	}); err != nil {
 		log.Fatalf("seed mysql: %v", err)
 	}
@@ -75,8 +75,8 @@ func main() {
 	siteIconStore := local.NewStore(filepath.Join(cfg.CoverDir, "site"), cfg.MaxCoverBytes)
 	parser := txt.NewParser()
 
-	identityQueries := identityapp.NewQueries(store)
-	identityCommands := identityapp.NewCommands(store, tokenManager)
+	identityQueries := identityapp.NewQueries(store, store, store)
+	identityCommands := identityapp.NewCommands(store, store, store, tokenManager, tokenManager)
 	bookQueries := bookapp.NewQueries(store)
 	bookCommands := bookapp.NewCommands(store, store)
 	categoryQueries := categoryapp.NewQueries(store)

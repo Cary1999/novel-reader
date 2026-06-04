@@ -39,7 +39,7 @@ func (h *RegisterHandler) Handle(ctx context.Context, input Register) (identitye
 	if err != nil {
 		return identityentity.User{}, err
 	}
-	user := h.service.NewRegisteredUser(username, string(hash), shared.RoleUser)
+	user := h.service.NewRegisteredUser(username, string(hash), shared.RoleReader)
 	item, err := h.users.CreateUser(ctx, user.Username, user.PasswordHash, user.Role)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "duplicate") {

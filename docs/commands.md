@@ -70,3 +70,9 @@ cd frontend && npm run dev
 
 - 本地从 `backend/` 目录执行 `go run ./cmd/server` 时，默认相对存储目录会自动解析到仓库根目录下的 `data/uploads` 与 `data/uploads/covers`，与 Docker 运行时保持一致。
 - 如需自定义位置，显式设置 `UPLOAD_DIR` 和 `COVER_DIR` 即可。
+- Phase 10 目标端口规划：
+  - 读者端：`3000`
+  - 作者端：`3001`
+  - 后台端：`3002`
+  - 后端：`8000`
+- Phase 10 默认允许清空旧数据并按新模型重建。

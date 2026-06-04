@@ -28,7 +28,7 @@ func (h *UpdateNicknameHandler) Handle(ctx context.Context, actor shared.Actor, 
 	if err != nil {
 		return identityentity.User{}, err
 	}
-	user, err := h.users.UpdateUserNickname(ctx, actor.UserID, nickname)
+	user, err := h.users.UpdateUserNickname(ctx, actor.ActorID, nickname)
 	if err != nil {
 		if err == shared.ErrNotFound {
 			return identityentity.User{}, shared.NewError(http.StatusUnauthorized, "UNAUTHORIZED", "login required")

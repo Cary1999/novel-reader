@@ -18,7 +18,7 @@ func NewCurrentUserHandler(users identityrepository.UserRepository) *CurrentUser
 }
 
 func (h *CurrentUserHandler) Handle(ctx context.Context, actor shared.Actor) (identityentity.User, error) {
-	user, err := h.users.FindUserByID(ctx, actor.UserID)
+	user, err := h.users.FindUserByID(ctx, actor.ActorID)
 	if err != nil {
 		if err == shared.ErrNotFound {
 			return identityentity.User{}, shared.NewError(http.StatusUnauthorized, "UNAUTHORIZED", "login required")

@@ -11,14 +11,14 @@ env_value() {
 BASE_URL="${BASE_URL:-http://localhost:8000}"
 SMOKE_USERNAME="${SMOKE_USERNAME:-smoke_$(date +%s)}"
 SMOKE_PASSWORD="${SMOKE_PASSWORD:-password123}"
-ADMIN_USERNAME="${ADMIN_USERNAME:-$(env_value ADMIN_USERNAME)}"
-ADMIN_PASSWORD="${ADMIN_PASSWORD:-$(env_value ADMIN_PASSWORD)}"
-ADMIN_USERNAME="${ADMIN_USERNAME:-admin}"
-ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin_password_change_me}"
+SUPER_ADMIN_USERNAME="${SUPER_ADMIN_USERNAME:-$(env_value SUPER_ADMIN_USERNAME)}"
+SUPER_ADMIN_PASSWORD="${SUPER_ADMIN_PASSWORD:-$(env_value SUPER_ADMIN_PASSWORD)}"
+SUPER_ADMIN_USERNAME="${SUPER_ADMIN_USERNAME:-admin}"
+SUPER_ADMIN_PASSWORD="${SUPER_ADMIN_PASSWORD:-admin_password_change_me}"
 TMP_DIR="${TMPDIR:-/tmp}/novel-reader-smoke.$$"
 
 TOKEN=""
-ADMIN_TOKEN=""
+SUPER_ADMIN_TOKEN=""
 CATEGORY_ID=""
 
 cleanup() {
@@ -227,16 +227,16 @@ TXT
 }
 
 try_admin_upload() {
-  admin_body="{\"username\":\"$ADMIN_USERNAME\",\"password\":\"$ADMIN_PASSWORD\"}"
-  code="$(request POST /api/auth/login "$admin_body")"
+  admin_body="{\"username\":\"$SUPER_ADMIN_USERNAME\",\"password\":\"$SUPER_ADMIN_PASSWORD\"}"
+  code="$(request POST /api/admin/auth/login "$admin_body")"
 
   if [ "$code" != "200" ]; then
     echo "SKIP admin upload: admin login returned $code"
     return
   fi
 
-  ADMIN_TOKEN="$(json_value token)"
-  if [ -z "$ADMIN_TOKEN" ]; then
+  SUPER_ADMIN_TOKEN="$(json_value token)"
+  if [ -z "$SUPER_ADMIN_TOKEN" ]; then
     echo "SKIP admin upload: admin login response did not contain token"
     return
   fi
@@ -251,7 +251,7 @@ try_admin_upload() {
 TXT
 
   code="$(curl -sS -X POST "$BASE_URL/api/admin/books/upload" \
-    -H "Authorization: Bearer $ADMIN_TOKEN" \
+    -H "Authorization: Bearer $SUPER_ADMIN_TOKEN" \
     -F "title=Smoke Test Novel" \
     -F "categoryId=$CATEGORY_ID" \
     -F "description=Smoke check upload sample" \
@@ -269,15 +269,15 @@ TXT
 check_admin_management() {
   book_id="$1"
 
-  code="$(request GET "/api/admin/books?page=1&pageSize=5" "" "$ADMIN_TOKEN")"
+  code="$(request GET "/api/admin/books?page=1&pageSize=5" "" "$SUPER_ADMIN_TOKEN")"
   assert_status "admin book list" "$code" "200"
 
   update_body="{\"title\":\"Smoke Managed Novel\",\"categoryId\":$CATEGORY_ID,\"description\":\"Updated by smoke\"}"
-  code="$(request PATCH "/api/admin/books/$book_id" "$update_body" "$ADMIN_TOKEN")"
+  code="$(request PATCH "/api/admin/books/$book_id" "$update_body" "$SUPER_ADMIN_TOKEN")"
   assert_status "admin update book" "$code" "200"
 
   add_body="{\"title\":\"第三章 新增\",\"content\":\"这是 smoke 新增章节。\"}"
-  code="$(request POST "/api/admin/books/$book_id/chapters" "$add_body" "$ADMIN_TOKEN")"
+  code="$(request POST "/api/admin/books/$book_id/chapters" "$add_body" "$SUPER_ADMIN_TOKEN")"
   assert_status "admin add chapter" "$code" "200"
   chapter_id="$(json_number id)"
   if [ -z "$chapter_id" ]; then

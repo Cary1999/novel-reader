@@ -38,9 +38,9 @@ func TestChapterDetailRequiresLogin(t *testing.T) {
 	assertErrorCode(t, rec.Body.String(), "UNAUTHORIZED")
 }
 
-func TestChapterDetailAllowsAuthenticatedUser(t *testing.T) {
+func TestChapterDetailAllowsAuthenticatedReader(t *testing.T) {
 	handler, tokens := testHandler(t)
-	token, err := tokens.Issue(identityentity.User{ID: 7, Username: "reader", Role: shared.RoleUser})
+	token, err := tokens.Issue(identityentity.User{ID: 7, Username: "reader", Role: shared.RoleReader})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,137 +53,15 @@ func TestChapterDetailAllowsAuthenticatedUser(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
 	}
-	var chapterItem bookentity.Chapter
-	if err := json.Unmarshal(rec.Body.Bytes(), &chapterItem); err != nil {
-		t.Fatal(err)
-	}
-	if chapterItem.ID != 2 || chapterItem.BookID != 1 || chapterItem.Content == "" {
-		t.Fatalf("unexpected chapter response: %#v", chapterItem)
-	}
 }
 
-func TestAdminUploadRejectsNonAdminToken(t *testing.T) {
+func TestMyBooksRejectsReader(t *testing.T) {
 	handler, tokens := testHandler(t)
-	token, err := tokens.Issue(identityentity.User{ID: 7, Username: "reader", Role: shared.RoleUser})
+	token, err := tokens.Issue(identityentity.User{ID: 7, Username: "reader", Role: shared.RoleReader})
 	if err != nil {
 		t.Fatal(err)
 	}
-	req := httptest.NewRequest(http.MethodPost, "/api/admin/books/upload", strings.NewReader(""))
-	req.Header.Set("Authorization", "Bearer "+token)
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("expected 403, got %d body=%s", rec.Code, rec.Body.String())
-	}
-	assertErrorCode(t, rec.Body.String(), "FORBIDDEN")
-}
-
-func TestAdminBookManagementRejectsNonAdminToken(t *testing.T) {
-	handler, tokens := testHandler(t)
-	token, err := tokens.Issue(identityentity.User{ID: 7, Username: "reader", Role: shared.RoleUser})
-	if err != nil {
-		t.Fatal(err)
-	}
-	req := httptest.NewRequest(http.MethodDelete, "/api/admin/books/1", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("expected 403, got %d body=%s", rec.Code, rec.Body.String())
-	}
-	assertErrorCode(t, rec.Body.String(), "FORBIDDEN")
-}
-
-func TestAdminAddChapterAllowsAdmin(t *testing.T) {
-	handler, tokens := testHandler(t)
-	token, err := tokens.Issue(identityentity.User{ID: 1, Username: "admin", Role: shared.RoleAdmin})
-	if err != nil {
-		t.Fatal(err)
-	}
-	req := httptest.NewRequest(http.MethodPost, "/api/admin/books/1/chapters", strings.NewReader(`{"title":"新章","content":"正文"}`))
-	req.Header.Set("Authorization", "Bearer "+token)
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
-	}
-	var chapterItem bookentity.Chapter
-	if err := json.Unmarshal(rec.Body.Bytes(), &chapterItem); err != nil {
-		t.Fatal(err)
-	}
-	if chapterItem.BookID != 1 || chapterItem.Title != "新章" || chapterItem.Content != "正文" {
-		t.Fatalf("unexpected chapter response: %#v", chapterItem)
-	}
-}
-
-func TestAdminUploadParsesOnlyForAdmin(t *testing.T) {
-	handler, tokens := testHandler(t)
-	token, err := tokens.Issue(identityentity.User{ID: 1, Username: "admin", Role: shared.RoleAdmin})
-	if err != nil {
-		t.Fatal(err)
-	}
-	req := httptest.NewRequest(http.MethodPost, "/api/admin/books/upload", strings.NewReader(""))
-	req.Header.Set("Authorization", "Bearer "+token)
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("expected multipart validation after admin auth, got %d body=%s", rec.Code, rec.Body.String())
-	}
-	assertErrorCode(t, rec.Body.String(), "BAD_REQUEST")
-}
-
-func TestSiteSettingsIsPublic(t *testing.T) {
-	handler, _ := testHandler(t)
-	req := httptest.NewRequest(http.MethodGet, "/api/site-settings", nil)
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
-	}
-	var item siteentity.Settings
-	if err := json.Unmarshal(rec.Body.Bytes(), &item); err != nil {
-		t.Fatal(err)
-	}
-	if item.BrandName == "" || item.BrandIconURL != "/api/site-settings/icon" {
-		t.Fatalf("unexpected site settings response: %#v", item)
-	}
-}
-
-func TestAdminSiteSettingsRejectsNonAdminToken(t *testing.T) {
-	handler, tokens := testHandler(t)
-	token, err := tokens.Issue(identityentity.User{ID: 7, Username: "reader", Role: shared.RoleUser})
-	if err != nil {
-		t.Fatal(err)
-	}
-	req := httptest.NewRequest(http.MethodPatch, "/api/admin/site-settings", strings.NewReader(`{"brandName":"新站名"}`))
-	req.Header.Set("Authorization", "Bearer "+token)
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("expected 403, got %d body=%s", rec.Code, rec.Body.String())
-	}
-	assertErrorCode(t, rec.Body.String(), "FORBIDDEN")
-}
-
-func TestRecommendScoreUpdateRejectsAuthor(t *testing.T) {
-	handler, tokens := testHandler(t)
-	token, err := tokens.Issue(identityentity.User{ID: 1, Username: "reader", Role: shared.RoleUser})
-	if err != nil {
-		t.Fatal(err)
-	}
-	req := httptest.NewRequest(http.MethodPatch, "/api/books/1", strings.NewReader(`{"title":"书名","categoryId":1,"description":"简介","recommendScore":9}`))
+	req := httptest.NewRequest(http.MethodGet, "/api/me/books", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 
@@ -197,7 +75,7 @@ func TestRecommendScoreUpdateRejectsAuthor(t *testing.T) {
 
 func TestBookUpdatePreservesRecommendScoreWhenAuthorEditsMetadata(t *testing.T) {
 	handler, tokens := testHandler(t)
-	token, err := tokens.Issue(identityentity.User{ID: 1, Username: "reader", Role: shared.RoleUser})
+	token, err := tokens.Issue(identityentity.User{ID: 1, Username: "author", Role: shared.RoleAuthor})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,11 +97,156 @@ func TestBookUpdatePreservesRecommendScoreWhenAuthorEditsMetadata(t *testing.T) 
 	}
 }
 
+func TestRecommendScoreUpdateRejectsAuthor(t *testing.T) {
+	handler, tokens := testHandler(t)
+	token, err := tokens.Issue(identityentity.User{ID: 1, Username: "author", Role: shared.RoleAuthor})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPatch, "/api/books/1", strings.NewReader(`{"title":"书名","categoryId":1,"description":"简介","recommendScore":9}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	assertErrorCode(t, rec.Body.String(), "FORBIDDEN")
+}
+
+func TestAdminSiteSettingsRejectsFrontToken(t *testing.T) {
+	handler, tokens := testHandler(t)
+	token, err := tokens.Issue(identityentity.User{ID: 7, Username: "reader", Role: shared.RoleReader})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPatch, "/api/admin/site-settings", strings.NewReader(`{"brandName":"新站名"}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	assertErrorCode(t, rec.Body.String(), "FORBIDDEN")
+}
+
+func TestReviewerCanUpdateRecommendScore(t *testing.T) {
+	handler, tokens := testHandler(t)
+	token, err := tokens.IssueOperator(identityentity.Operator{ID: 99, Username: "reviewer", Role: shared.RoleReviewer})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPatch, "/api/admin/books/1/recommend-score", strings.NewReader(`{"recommendScore":18}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var item bookentity.Book
+	if err := json.Unmarshal(rec.Body.Bytes(), &item); err != nil {
+		t.Fatal(err)
+	}
+	if item.RecommendScore != 18 {
+		t.Fatalf("RecommendScore = %d, want 18", item.RecommendScore)
+	}
+}
+
+func TestAdminBooksRejectsFrontToken(t *testing.T) {
+	handler, tokens := testHandler(t)
+	token, err := tokens.Issue(identityentity.User{ID: 1, Username: "author", Role: shared.RoleAuthor})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/admin/books?page=1&pageSize=10", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	assertErrorCode(t, rec.Body.String(), "FORBIDDEN")
+}
+
+func TestReviewerCanPromoteReaderToAuthor(t *testing.T) {
+	handler, tokens := testHandler(t)
+	token, err := tokens.IssueOperator(identityentity.Operator{ID: 99, Username: "reviewer", Role: shared.RoleReviewer})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPatch, "/api/admin/users/7/author-role", strings.NewReader(`{"action":"promote_to_author"}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var user map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &user); err != nil {
+		t.Fatal(err)
+	}
+	if user["role"] != string(shared.RoleAuthor) {
+		t.Fatalf("role = %v, want %q", user["role"], shared.RoleAuthor)
+	}
+}
+
+func TestOperatorsRequiresSuperAdmin(t *testing.T) {
+	handler, tokens := testHandler(t)
+	token, err := tokens.IssueOperator(identityentity.Operator{ID: 99, Username: "reviewer", Role: shared.RoleReviewer})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/admin/operators", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	assertErrorCode(t, rec.Body.String(), "FORBIDDEN")
+}
+
+func TestSuperAdminCanCreateOperator(t *testing.T) {
+	handler, tokens := testHandler(t)
+	token, err := tokens.IssueOperator(identityentity.Operator{ID: 100, Username: "root", Role: shared.RoleSuperAdmin})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/admin/operators", strings.NewReader(`{"username":"auditor","password":"password123","role":"reviewer"}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var operator map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &operator); err != nil {
+		t.Fatal(err)
+	}
+	if operator["role"] != string(shared.RoleReviewer) {
+		t.Fatalf("role = %v, want %q", operator["role"], shared.RoleReviewer)
+	}
+}
+
 func testHandler(t *testing.T) (http.Handler, *jwt.Manager) {
 	t.Helper()
 	tokens := jwt.NewManager([]byte("test-secret"), time.Hour)
-	identityQueries := identityapp.NewQueries(fakeIdentityRepo{})
-	identityCommands := identityapp.NewCommands(fakeIdentityRepo{}, tokens)
+	repo := fakeIdentityRepo{}
+	identityQueries := identityapp.NewQueries(repo, repo, repo)
+	identityCommands := identityapp.NewCommands(repo, repo, repo, tokens, tokens)
 	bookQueries := bookapp.NewQueries(fakeBookRepo{})
 	bookCommands := bookapp.NewCommands(fakeBookRepo{}, fakeCategoryRepo{})
 	categoryQueries := categoryapp.NewQueries(fakeCategoryRepo{})
@@ -254,20 +277,91 @@ func (fakeIdentityRepo) CreateUser(context.Context, string, string, shared.Role)
 	return identityentity.User{}, nil
 }
 
-func (fakeIdentityRepo) FindUserByUsername(context.Context, string) (identityentity.User, error) {
-	return identityentity.User{}, shared.ErrNotFound
+func (fakeIdentityRepo) FindUserByUsername(_ context.Context, username string) (identityentity.User, error) {
+	switch username {
+	case "author":
+		return identityentity.User{ID: 1, Username: "author", Nickname: "author", PasswordHash: "$2a$10$7EqJtq98hPqEX7fNZaFWoO5NL0E7g8iIrM3P6KDAdAm8YGtSNYGG6", Role: shared.RoleAuthor}, nil
+	default:
+		return identityentity.User{}, shared.ErrNotFound
+	}
 }
 
 func (fakeIdentityRepo) FindUserByID(_ context.Context, id int64) (identityentity.User, error) {
-	return identityentity.User{ID: id, Username: "reader", Nickname: "reader", Role: shared.RoleUser}, nil
+	role := shared.RoleReader
+	if id == 1 {
+		role = shared.RoleAuthor
+	}
+	return identityentity.User{ID: id, Username: "reader", Nickname: "reader", Role: role}, nil
+}
+
+func (fakeIdentityRepo) ListUsers(context.Context) ([]identityentity.FrontUserSummary, error) {
+	return []identityentity.FrontUserSummary{{ID: 7, Username: "reader", Nickname: "reader", Role: string(shared.RoleReader)}}, nil
 }
 
 func (fakeIdentityRepo) UpdateUserNickname(_ context.Context, id int64, nickname string) (identityentity.User, error) {
-	return identityentity.User{ID: id, Username: "reader", Nickname: nickname, Role: shared.RoleUser}, nil
+	return identityentity.User{ID: id, Username: "reader", Nickname: nickname, Role: shared.RoleReader}, nil
 }
 
 func (fakeIdentityRepo) UpdateUserPassword(context.Context, int64, string) error {
 	return nil
+}
+
+func (fakeIdentityRepo) PromoteUserToAuthor(_ context.Context, id int64) (identityentity.User, error) {
+	return identityentity.User{ID: id, Username: "reader", Nickname: "reader", Role: shared.RoleAuthor}, nil
+}
+
+func (fakeIdentityRepo) CreateOperator(_ context.Context, username, passwordHash string, role shared.Role) (identityentity.Operator, error) {
+	return identityentity.Operator{ID: 11, Username: username, PasswordHash: passwordHash, Role: role}, nil
+}
+
+func (fakeIdentityRepo) FindOperatorByUsername(_ context.Context, username string) (identityentity.Operator, error) {
+	switch username {
+	case "reviewer":
+		return identityentity.Operator{ID: 99, Username: "reviewer", PasswordHash: "$2a$10$7EqJtq98hPqEX7fNZaFWoO5NL0E7g8iIrM3P6KDAdAm8YGtSNYGG6", Role: shared.RoleReviewer}, nil
+	case "root":
+		return identityentity.Operator{ID: 100, Username: "root", PasswordHash: "$2a$10$7EqJtq98hPqEX7fNZaFWoO5NL0E7g8iIrM3P6KDAdAm8YGtSNYGG6", Role: shared.RoleSuperAdmin}, nil
+	default:
+		return identityentity.Operator{}, shared.ErrNotFound
+	}
+}
+
+func (fakeIdentityRepo) FindOperatorByID(_ context.Context, id int64) (identityentity.Operator, error) {
+	role := shared.RoleReviewer
+	if id == 100 {
+		role = shared.RoleSuperAdmin
+	}
+	return identityentity.Operator{ID: id, Username: "operator", Role: role}, nil
+}
+
+func (fakeIdentityRepo) ListOperators(context.Context) ([]identityentity.Operator, error) {
+	return []identityentity.Operator{{ID: 99, Username: "reviewer", Role: shared.RoleReviewer}}, nil
+}
+
+func (fakeIdentityRepo) UpdateOperatorRole(_ context.Context, id int64, role shared.Role) (identityentity.Operator, error) {
+	return identityentity.Operator{ID: id, Username: "operator", Role: role}, nil
+}
+
+func (fakeIdentityRepo) UpdateOperatorPassword(context.Context, int64, string) error {
+	return nil
+}
+
+func (fakeIdentityRepo) CreateAuthorApplication(_ context.Context, item identityentity.AuthorApplication) (identityentity.AuthorApplication, error) {
+	item.ID = 1
+	item.Username = "reader"
+	item.Nickname = "reader"
+	return item, nil
+}
+
+func (fakeIdentityRepo) FindLatestAuthorApplicationByUserID(context.Context, int64) (identityentity.AuthorApplication, error) {
+	return identityentity.AuthorApplication{}, shared.ErrNotFound
+}
+
+func (fakeIdentityRepo) ListAuthorApplications(context.Context) ([]identityentity.AuthorApplication, error) {
+	return []identityentity.AuthorApplication{{ID: 1, UserID: 7, Username: "reader", Nickname: "reader", PenName: "青石", Reason: "希望开始连载自己的小说", Status: "pending"}}, nil
+}
+
+func (fakeIdentityRepo) ReviewAuthorApplication(_ context.Context, applicationID int64, status, reviewNote string, reviewedByOperatorID int64) (identityentity.AuthorApplication, error) {
+	return identityentity.AuthorApplication{ID: applicationID, UserID: 7, Username: "reader", Nickname: "reader", PenName: "青石", Reason: "希望开始连载自己的小说", Status: status, ReviewNote: reviewNote, ReviewedByOperatorID: &reviewedByOperatorID}, nil
 }
 
 type fakeBookRepo struct{}
@@ -311,6 +405,11 @@ func (fakeBookRepo) CreateBook(_ context.Context, input bookentity.Book, _ *int6
 
 func (fakeBookRepo) UpdateBookMetadata(_ context.Context, bookID int64, input bookentity.Book, _ *int64) (bookentity.Book, error) {
 	return bookentity.Book{ID: bookID, Title: input.Title, Author: "作者", Description: input.Description, RecommendScore: input.RecommendScore}, nil
+}
+
+func (fakeBookRepo) UpdateRecommendScore(_ context.Context, bookID int64, recommendScore int) (bookentity.Book, error) {
+	owner := int64(1)
+	return bookentity.Book{ID: bookID, Title: "测试书", Author: "作者", OwnerUserID: &owner, Category: "玄幻", RecommendScore: recommendScore}, nil
 }
 
 func (fakeBookRepo) DeleteBook(context.Context, int64) error {

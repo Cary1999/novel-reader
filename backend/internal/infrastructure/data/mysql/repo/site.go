@@ -20,7 +20,7 @@ func (r SiteRepository) GetSettings(ctx context.Context) (siteentity.Settings, e
 	var record model.SiteSettings
 	err := r.db.QueryRowContext(ctx, `
 		SELECT id, brand_name, brand_subtitle, brand_icon_path,
-		       hero_eyebrow, hero_title, hero_description, updated_by_user_id, created_at, updated_at
+		       hero_eyebrow, hero_title, hero_description, updated_by_operator_id, created_at, updated_at
 		FROM site_settings WHERE id = 1
 	`).Scan(
 		&record.ID,
@@ -30,7 +30,7 @@ func (r SiteRepository) GetSettings(ctx context.Context) (siteentity.Settings, e
 		&record.HeroEyebrow,
 		&record.HeroTitle,
 		&record.HeroDescription,
-		&record.UpdatedByUserID,
+		&record.UpdatedByOperatorID,
 		&record.CreatedAt,
 		&record.UpdatedAt,
 	)
@@ -46,7 +46,7 @@ func (r SiteRepository) UpsertSettings(ctx context.Context, item siteentity.Sett
 	if _, err := r.db.ExecContext(ctx, `
 		INSERT INTO site_settings (
 			id, brand_name, brand_subtitle, brand_icon_path,
-			hero_eyebrow, hero_title, hero_description, updated_by_user_id
+			hero_eyebrow, hero_title, hero_description, updated_by_operator_id
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		ON DUPLICATE KEY UPDATE
 			brand_name = VALUES(brand_name),
@@ -55,8 +55,8 @@ func (r SiteRepository) UpsertSettings(ctx context.Context, item siteentity.Sett
 			hero_eyebrow = VALUES(hero_eyebrow),
 			hero_title = VALUES(hero_title),
 			hero_description = VALUES(hero_description),
-			updated_by_user_id = VALUES(updated_by_user_id)
-	`, 1, record.BrandName, record.BrandSubtitle, nullableString(record.BrandIconPath), record.HeroEyebrow, record.HeroTitle, record.HeroDescription, nullableInt64(record.UpdatedByUserID)); err != nil {
+			updated_by_operator_id = VALUES(updated_by_operator_id)
+	`, 1, record.BrandName, record.BrandSubtitle, nullableString(record.BrandIconPath), record.HeroEyebrow, record.HeroTitle, record.HeroDescription, nullableInt64(record.UpdatedByOperatorID)); err != nil {
 		return siteentity.Settings{}, err
 	}
 	return r.GetSettings(ctx)

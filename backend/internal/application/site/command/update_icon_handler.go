@@ -43,7 +43,7 @@ func (h *UpdateIconHandler) Handle(ctx context.Context, actor shared.Actor, orig
 	if err == shared.ErrNotFound {
 		current = h.service.DefaultSettings()
 	}
-	item := h.service.AttachIcon(current, saved.RelativePath, actor.UserID)
+	item := h.service.AttachIcon(current, saved.RelativePath, actor.ActorID)
 	return h.repo.UpsertSettings(ctx, item)
 }
 

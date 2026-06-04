@@ -12,7 +12,7 @@ import (
 	"novel-reader/backend/internal/domain/shared"
 )
 
-type TokenIssuer interface {
+type UserTokenIssuer interface {
 	Issue(user identityentity.User) (string, error)
 }
 
@@ -28,10 +28,10 @@ type LoginResult struct {
 
 type LoginHandler struct {
 	users  identityrepository.UserRepository
-	tokens TokenIssuer
+	tokens UserTokenIssuer
 }
 
-func NewLoginHandler(users identityrepository.UserRepository, tokens TokenIssuer) *LoginHandler {
+func NewLoginHandler(users identityrepository.UserRepository, tokens UserTokenIssuer) *LoginHandler {
 	return &LoginHandler{users: users, tokens: tokens}
 }
 

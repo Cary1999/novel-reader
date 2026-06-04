@@ -14,7 +14,7 @@ type Book struct {
 	OwnerUserID        sql.NullInt64  `gorm:"column:owner_user_id"`
 	CategoryID         sql.NullInt64  `gorm:"column:category_id"`
 	SourceUploadID     sql.NullInt64  `gorm:"column:source_upload_id"`
-	CategoryName       string         `gorm:"column:category_name;-:all"`
+	CategoryName       string         `gorm:"column:category_name;->"`
 	Description        string         `gorm:"column:description"`
 	ChapterCount       int            `gorm:"column:chapter_count"`
 	LatestChapterTitle string         `gorm:"column:latest_chapter_title"`

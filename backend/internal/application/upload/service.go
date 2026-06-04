@@ -59,7 +59,10 @@ func NewService(books bookrepository.BookRepository, categories categoryreposito
 }
 
 func (s *Service) UploadBook(ctx context.Context, actor shared.Actor, input bookcommand.CreateBook, originalName string, reader io.Reader) (uploadquery.ImportResult, error) {
-	normalizedInput, err := bookcommand.NormalizeCreateBookForActor(input, actor.UserID)
+	if !actor.IsAuthor() {
+		return uploadquery.ImportResult{}, shared.NewError(http.StatusForbidden, "FORBIDDEN", "author required")
+	}
+	normalizedInput, err := bookcommand.NormalizeCreateBookForActor(input, actor.ActorID)
 	if err != nil {
 		return uploadquery.ImportResult{}, err
 	}
@@ -75,7 +78,7 @@ func (s *Service) UploadBook(ctx context.Context, actor shared.Actor, input book
 	}
 
 	uploadID, err := s.uploads.CreateUpload(ctx, uploadentity.Upload{
-		ActorUserID:      actor.UserID,
+		ActorUserID:      actor.ActorID,
 		OriginalFilename: originalName,
 		StoredPath:       saved.RelativePath,
 		FileSize:         saved.Size,

@@ -29,7 +29,23 @@ func migrate(ctx context.Context, db *sql.DB) error {
 	if err := ensureColumn(ctx, db, "books", "cover_path", `ALTER TABLE books ADD COLUMN cover_path VARCHAR(255) NULL AFTER recommend_score`); err != nil {
 		return err
 	}
+	if err := ensureColumn(ctx, db, "site_settings", "updated_by_operator_id", `ALTER TABLE site_settings ADD COLUMN updated_by_operator_id BIGINT NULL AFTER hero_description`); err != nil {
+		return err
+	}
+	if err := ensureColumn(ctx, db, "uploads", "actor_user_id", `ALTER TABLE uploads ADD COLUMN actor_user_id BIGINT NULL AFTER id`); err != nil {
+		return err
+	}
 	if err := ensureIndex(ctx, db, "books", "idx_books_recommend_score", `ALTER TABLE books ADD INDEX idx_books_recommend_score (recommend_score)`); err != nil {
+		return err
+	}
+	if ok, err := hasColumn(ctx, db, "uploads", "admin_user_id"); err != nil {
+		return err
+	} else if ok {
+		if _, err := db.ExecContext(ctx, `UPDATE uploads SET actor_user_id = admin_user_id WHERE actor_user_id IS NULL`); err != nil {
+			return err
+		}
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE site_settings SET updated_by_operator_id = NULL WHERE updated_by_operator_id IS NULL`); err != nil {
 		return err
 	}
 	if err := ensureColumnAlter(ctx, db, "site_settings", "top_line_title", `ALTER TABLE site_settings MODIFY COLUMN top_line_title VARCHAR(120) NOT NULL DEFAULT ''`); err != nil {

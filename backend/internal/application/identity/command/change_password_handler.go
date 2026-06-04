@@ -29,7 +29,7 @@ func (h *ChangePasswordHandler) Handle(ctx context.Context, actor shared.Actor, 
 	if err := h.service.ValidatePasswordLength(input.NewPassword); err != nil {
 		return err
 	}
-	user, err := h.users.FindUserByID(ctx, actor.UserID)
+	user, err := h.users.FindUserByID(ctx, actor.ActorID)
 	if err != nil {
 		if err == shared.ErrNotFound {
 			return shared.NewError(http.StatusUnauthorized, "UNAUTHORIZED", "login required")
@@ -43,7 +43,7 @@ func (h *ChangePasswordHandler) Handle(ctx context.Context, actor shared.Actor, 
 	if err != nil {
 		return err
 	}
-	if err := h.users.UpdateUserPassword(ctx, actor.UserID, string(hash)); err != nil {
+	if err := h.users.UpdateUserPassword(ctx, actor.ActorID, string(hash)); err != nil {
 		if err == shared.ErrNotFound {
 			return shared.NewError(http.StatusUnauthorized, "UNAUTHORIZED", "login required")
 		}

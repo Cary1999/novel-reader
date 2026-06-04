@@ -1,4 +1,5 @@
-export type Role = "user" | "admin";
+export type FrontRole = "reader" | "author";
+export type AdminRole = "reviewer" | "super_admin";
 
 export interface ApiErrorBody {
   code?: string;
@@ -9,7 +10,13 @@ export interface CurrentUser {
   id: number;
   username: string;
   nickname: string;
-  role: Role;
+  role: FrontRole;
+}
+
+export interface CurrentOperator {
+  id: number;
+  username: string;
+  role: AdminRole;
 }
 
 export interface RegisterResponse {
@@ -21,6 +28,11 @@ export interface RegisterResponse {
 export interface LoginResponse {
   token: string;
   user: CurrentUser;
+}
+
+export interface AdminLoginResponse {
+  token: string;
+  operator: CurrentOperator;
 }
 
 export interface Category {
@@ -127,4 +139,31 @@ export interface SiteSettingsInput {
   heroEyebrow: string;
   heroTitle: string;
   heroDescription: string;
+}
+
+export interface AuthorApplication {
+  id: number;
+  userId: number;
+  username?: string;
+  nickname?: string;
+  penName: string;
+  reason: string;
+  status: "pending" | "approved" | "rejected";
+  reviewNote?: string;
+  reviewedByOperatorId?: number;
+  reviewedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface FrontUserSummary {
+  id: number;
+  username: string;
+  nickname: string;
+  role: FrontRole;
+  latestApplicationId?: number;
+  latestApplicationStatus?: string;
+  latestApplicationCreatedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }

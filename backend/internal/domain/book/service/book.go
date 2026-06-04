@@ -41,6 +41,9 @@ func (s *BookService) NewChapter(title, content string) bookentity.Chapter {
 }
 
 func (s *BookService) CanManageBook(ctx context.Context, bookID int64, actor shared.Actor) error {
+	if !actor.IsAuthor() {
+		return shared.NewError(http.StatusForbidden, "FORBIDDEN", "author required")
+	}
 	item, err := s.booksRepo.FindBook(ctx, bookID)
 	if err != nil {
 		if err == shared.ErrNotFound {
@@ -48,10 +51,7 @@ func (s *BookService) CanManageBook(ctx context.Context, bookID int64, actor sha
 		}
 		return err
 	}
-	if actor.Role == shared.RoleAdmin {
-		return nil
-	}
-	if item.OwnerUserID == nil || *item.OwnerUserID != actor.UserID {
+	if item.OwnerUserID == nil || *item.OwnerUserID != actor.ActorID {
 		return shared.NewError(http.StatusForbidden, "FORBIDDEN", "only the author can manage this book")
 	}
 	return nil

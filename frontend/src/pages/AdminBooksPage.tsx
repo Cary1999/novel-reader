@@ -1,6 +1,5 @@
 import { LibraryBig, Plus, RefreshCw, Save, Trash2, Upload, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
 import { apiClient, ApiError } from "../api/client";
 import type { BookSummary, Category, ChapterDetail, ChapterSummary, UploadSummary } from "../api/types";
 import { EmptyState, ErrorState, LoadingState } from "../components/StateViews";
@@ -12,7 +11,6 @@ type BookForm = {
   title: string;
   categoryId: string;
   description: string;
-  recommendScore: string;
 };
 
 type ChapterForm = {
@@ -25,7 +23,6 @@ const emptyBookForm: BookForm = {
   title: "",
   categoryId: "",
   description: "",
-  recommendScore: "0",
 };
 
 const emptyChapterForm: ChapterForm = {
@@ -35,7 +32,6 @@ const emptyChapterForm: ChapterForm = {
 };
 
 export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
-  const location = useLocation();
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [books, setBooks] = useState<BookSummary[]>([]);
@@ -64,9 +60,8 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
   const [isUploadingTxt, setIsUploadingTxt] = useState(false);
 
   const totalPages = Math.max(Math.ceil(total / PAGE_SIZE), 1);
-  const isAdminScope = location.pathname.startsWith("/admin");
-  const pageTitle = isAdminScope ? "小说管理" : "我的作品";
-  const toolLabel = isAdminScope ? "管理员工具" : "作者工具";
+  const pageTitle = "我的作品";
+  const toolLabel = "作者工具";
 
   function clearPendingCover() {
     setPendingCoverFile(null);
@@ -121,7 +116,7 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
     }
     try {
       setIsUploadingTxt(true);
-      const response = await (isAdminScope ? apiClient.adminUploadBook : apiClient.uploadBook)({
+      const response = await apiClient.uploadBook({
         title: uploadTitle.trim(),
         categoryId: uploadCategoryId,
         description: uploadDescription.trim(),
@@ -145,9 +140,7 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
       setError("");
       const [categoryResponse, bookResponse] = await Promise.all([
         apiClient.categories(),
-        isAdminScope
-          ? apiClient.adminBooks({ q: query.trim(), page: nextPage, pageSize: PAGE_SIZE })
-          : apiClient.myBooks({ q: query.trim(), page: nextPage, pageSize: PAGE_SIZE }),
+        apiClient.myBooks({ q: query.trim(), page: nextPage, pageSize: PAGE_SIZE }),
       ]);
       const nextBooks = bookResponse.items ?? [];
       setCategories(categoryResponse.items ?? []);
@@ -181,7 +174,6 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
         title: nextBook.title,
         categoryId: String(nextBook.categoryId ?? ""),
         description: nextBook.description ?? "",
-        recommendScore: String(nextBook.recommendScore ?? 0),
       });
       setChapters(chapterResponse.items ?? []);
       setChapterForm(emptyChapterForm);
@@ -231,7 +223,7 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
           title: bookForm.title.trim(),
           categoryId: bookForm.categoryId,
           description: bookForm.description.trim(),
-        }, isAdminScope ? "admin" : "me");
+        });
         let coverUploadError = "";
         let createdMessage = "小说已新建";
 
@@ -262,7 +254,6 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
           title: bookForm.title.trim(),
           categoryId: bookForm.categoryId,
           description: bookForm.description.trim(),
-          ...(isAdminScope ? { recommendScore: Number(bookForm.recommendScore || 0) } : {}),
         };
         const updated = await apiClient.updateBook(selectedBook.id, payload);
         let nextSelected = { ...selectedBook, ...updated };
@@ -360,7 +351,7 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
   useEffect(() => {
     void loadBooks(page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, isAdminScope]);
+  }, [page]);
 
   const selectedHeading = useMemo(() => {
     if (isCreating) return "新建小说";
@@ -451,7 +442,7 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
                   </label>
                   <label>
                     作者
-                    <input value={isCreating ? (isAdminScope ? "系统" : "当前用户") : selectedBook?.author ?? ""} disabled />
+                    <input value={isCreating ? "当前作者" : selectedBook?.author ?? ""} disabled />
                   </label>
                 </div>
                 <label>
@@ -463,18 +454,6 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
                     ))}
                   </select>
                 </label>
-                {isAdminScope ? (
-                  <label>
-                    推荐度
-                    <input
-                      type="number"
-                      min={0}
-                      step={1}
-                      value={bookForm.recommendScore}
-                      onChange={(event) => setBookForm({ ...bookForm, recommendScore: event.target.value })}
-                    />
-                  </label>
-                ) : null}
                 <label>
                   简介
                   <textarea value={bookForm.description} rows={4} maxLength={1000} onChange={(event) => setBookForm({ ...bookForm, description: event.target.value })} />

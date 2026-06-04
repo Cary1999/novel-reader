@@ -236,6 +236,17 @@ func (r BookRepository) UpdateBookMetadata(ctx context.Context, bookID int64, it
 	return r.FindBook(ctx, bookID)
 }
 
+func (r BookRepository) UpdateRecommendScore(ctx context.Context, bookID int64, recommendScore int) (bookentity.Book, error) {
+	result := r.db.WithContext(ctx).Model(&model.Book{}).Where("id = ?", bookID).Update("recommend_score", recommendScore)
+	if result.Error != nil {
+		return bookentity.Book{}, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return bookentity.Book{}, shared.ErrNotFound
+	}
+	return r.FindBook(ctx, bookID)
+}
+
 func (r BookRepository) DeleteBook(ctx context.Context, bookID int64) error {
 	result := r.db.WithContext(ctx).Where("id = ?", bookID).Delete(&model.Book{})
 	if result.Error != nil {

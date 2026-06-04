@@ -27,12 +27,8 @@ func splitSQL(sqlText string) []string {
 }
 
 func ensureColumn(ctx context.Context, db *sql.DB, tableName, columnName, alterSQL string) error {
-	var count int
-	if err := db.QueryRowContext(ctx, `
-		SELECT COUNT(*)
-		FROM information_schema.COLUMNS
-		WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?
-	`, tableName, columnName).Scan(&count); err != nil {
+	count, err := columnCount(ctx, db, tableName, columnName)
+	if err != nil {
 		return err
 	}
 	if count > 0 {
@@ -45,12 +41,8 @@ func ensureColumn(ctx context.Context, db *sql.DB, tableName, columnName, alterS
 }
 
 func ensureColumnAlter(ctx context.Context, db *sql.DB, tableName, columnName, alterSQL string) error {
-	var count int
-	if err := db.QueryRowContext(ctx, `
-		SELECT COUNT(*)
-		FROM information_schema.COLUMNS
-		WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?
-	`, tableName, columnName).Scan(&count); err != nil {
+	count, err := columnCount(ctx, db, tableName, columnName)
+	if err != nil {
 		return err
 	}
 	if count == 0 {
@@ -60,6 +52,26 @@ func ensureColumnAlter(ctx context.Context, db *sql.DB, tableName, columnName, a
 		return fmt.Errorf("alter %s modify %s: %w", tableName, columnName, err)
 	}
 	return nil
+}
+
+func hasColumn(ctx context.Context, db *sql.DB, tableName, columnName string) (bool, error) {
+	count, err := columnCount(ctx, db, tableName, columnName)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func columnCount(ctx context.Context, db *sql.DB, tableName, columnName string) (int, error) {
+	var count int
+	if err := db.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM information_schema.COLUMNS
+		WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?
+	`, tableName, columnName).Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
 func ensureIndex(ctx context.Context, db *sql.DB, tableName, indexName, alterSQL string) error {

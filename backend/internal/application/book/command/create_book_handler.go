@@ -30,7 +30,10 @@ func NewCreateBookHandler(books bookrepository.BookRepository, service *bookserv
 }
 
 func (h *CreateBookHandler) Handle(ctx context.Context, actor shared.Actor, input CreateBook) (bookentity.Book, error) {
-	normalizedInput, err := normalizeCreateBook(input, actor.UserID)
+	if !actor.IsAuthor() {
+		return bookentity.Book{}, shared.NewError(http.StatusForbidden, "FORBIDDEN", "author required")
+	}
+	normalizedInput, err := normalizeCreateBook(input, actor.ActorID)
 	if err != nil {
 		return bookentity.Book{}, err
 	}

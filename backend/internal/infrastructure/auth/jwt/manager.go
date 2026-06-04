@@ -16,10 +16,11 @@ import (
 )
 
 type Claims struct {
-	UserID   int64       `json:"userId"`
-	Username string      `json:"username"`
-	Role     shared.Role `json:"role"`
-	Expires  int64       `json:"exp"`
+	ActorID  int64        `json:"actorId"`
+	Username string       `json:"username"`
+	Role     shared.Role  `json:"role"`
+	Scope    shared.Scope `json:"scope"`
+	Expires  int64        `json:"exp"`
 }
 
 type Manager struct {
@@ -33,11 +34,27 @@ func NewManager(secret []byte, ttl time.Duration) *Manager {
 
 func (m *Manager) Issue(user identityentity.User) (string, error) {
 	claims := Claims{
-		UserID:   user.ID,
+		ActorID:  user.ID,
 		Username: user.Username,
 		Role:     user.Role,
+		Scope:    shared.ScopeFront,
 		Expires:  time.Now().Add(m.ttl).Unix(),
 	}
+	return m.issueClaims(claims)
+}
+
+func (m *Manager) IssueOperator(operator identityentity.Operator) (string, error) {
+	claims := Claims{
+		ActorID:  operator.ID,
+		Username: operator.Username,
+		Role:     operator.Role,
+		Scope:    shared.ScopeAdmin,
+		Expires:  time.Now().Add(m.ttl).Unix(),
+	}
+	return m.issueClaims(claims)
+}
+
+func (m *Manager) issueClaims(claims Claims) (string, error) {
 	payload, err := json.Marshal(claims)
 	if err != nil {
 		return "", err
@@ -64,7 +81,7 @@ func (m *Manager) Parse(token string) (Claims, error) {
 	if err := json.Unmarshal(payload, &claims); err != nil {
 		return Claims{}, err
 	}
-	if claims.UserID <= 0 || claims.Expires <= time.Now().Unix() {
+	if claims.ActorID <= 0 || claims.Expires <= time.Now().Unix() {
 		return Claims{}, errors.New("expired token")
 	}
 	return claims, nil

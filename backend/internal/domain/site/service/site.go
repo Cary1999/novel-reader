@@ -83,14 +83,14 @@ func (s *SiteService) BuildSettings(input SettingsInput, iconPath *string, updat
 		return siteentity.Settings{}, err
 	}
 	return siteentity.Settings{
-		ID:              1,
-		BrandName:       brandName,
-		BrandSubtitle:   brandSubtitle,
-		BrandIconPath:   iconPath,
-		HeroEyebrow:     heroEyebrow,
-		HeroTitle:       heroTitle,
-		HeroDescription: heroDescription,
-		UpdatedByUserID: pointer(updatedBy),
+		ID:                  1,
+		BrandName:           brandName,
+		BrandSubtitle:       brandSubtitle,
+		BrandIconPath:       iconPath,
+		HeroEyebrow:         heroEyebrow,
+		HeroTitle:           heroTitle,
+		HeroDescription:     heroDescription,
+		UpdatedByOperatorID: pointer(updatedBy),
 	}, nil
 }
 
@@ -98,7 +98,7 @@ func (s *SiteService) AttachIcon(item siteentity.Settings, iconPath string, upda
 	item = s.ApplyDefaults(item)
 	item.ID = 1
 	item.BrandIconPath = pointer(iconPath)
-	item.UpdatedByUserID = pointer(updatedBy)
+	item.UpdatedByOperatorID = pointer(updatedBy)
 	return item
 }
 

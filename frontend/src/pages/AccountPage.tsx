@@ -1,16 +1,43 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { apiClient, ApiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import type { AuthorApplication } from "../api/types";
 
 export function AccountPage() {
-  const { user, refreshUser } = useAuth();
-  const [nickname, setNickname] = useState(user?.nickname ?? user?.username ?? "");
+  const { isAuthor, isReader, user, refreshUser } = useAuth();
+  const frontUser = user && "nickname" in user ? user : null;
+  const [nickname, setNickname] = useState(frontUser?.nickname ?? frontUser?.username ?? "");
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [penName, setPenName] = useState("");
+  const [reason, setReason] = useState("");
+  const [application, setApplication] = useState<AuthorApplication | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [isSubmittingApplication, setIsSubmittingApplication] = useState(false);
+
+  useEffect(() => {
+    setNickname(frontUser?.nickname ?? frontUser?.username ?? "");
+  }, [frontUser]);
+
+  useEffect(() => {
+    if (!isReader) {
+      setApplication(null);
+      return;
+    }
+    void (async () => {
+      try {
+        setApplication(await apiClient.myAuthorApplication());
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) {
+          setApplication(null);
+          return;
+        }
+      }
+    })();
+  }, [isReader]);
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -43,6 +70,32 @@ export function AccountPage() {
     }
   }
 
+  async function submitApplication(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    try {
+      setIsSubmittingApplication(true);
+      setError("");
+      const nextApplication = await apiClient.submitAuthorApplication(penName.trim(), reason.trim());
+      setApplication(nextApplication);
+      setPenName("");
+      setReason("");
+      setMessage("作者申请已提交，请等待后台审核");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "申请提交失败");
+    } finally {
+      setIsSubmittingApplication(false);
+    }
+  }
+
+  const roleLabel = isAuthor ? "作者" : "读者";
+  const applicationStatusLabel = application?.status === "approved"
+    ? "已通过"
+    : application?.status === "rejected"
+      ? "已拒绝"
+      : application?.status === "pending"
+        ? "审核中"
+        : "未申请";
+
   return (
     <main className="page shell admin-page">
       <section className="page-banner admin-banner">
@@ -61,7 +114,7 @@ export function AccountPage() {
           <p className="eyebrow">资料</p>
           <label>
             用户名
-            <input value={user?.username ?? ""} disabled />
+            <input value={frontUser?.username ?? ""} disabled />
           </label>
           <label>
             昵称
@@ -69,7 +122,7 @@ export function AccountPage() {
           </label>
           <label>
             角色
-            <input value={user?.role === "admin" ? "管理员" : "普通用户"} disabled />
+            <input value={roleLabel} disabled />
           </label>
           <button className="primary-button compact" type="submit" disabled={isSavingProfile}>
             {isSavingProfile ? "保存中..." : "保存昵称"}
@@ -90,6 +143,28 @@ export function AccountPage() {
             {isSavingPassword ? "修改中..." : "修改密码"}
           </button>
         </form>
+
+        {isReader ? (
+          <form className="panel form-stack" onSubmit={submitApplication}>
+            <p className="eyebrow">作者申请</p>
+            <label>
+              当前状态
+              <input value={applicationStatusLabel} disabled />
+            </label>
+            <label>
+              笔名
+              <input value={penName} maxLength={64} onChange={(event) => setPenName(event.target.value)} />
+            </label>
+            <label>
+              申请说明
+              <textarea value={reason} maxLength={500} rows={5} onChange={(event) => setReason(event.target.value)} />
+            </label>
+            {application?.reviewNote ? <p className="muted">审核备注：{application.reviewNote}</p> : null}
+            <button className="primary-button compact" type="submit" disabled={isSubmittingApplication || application?.status === "pending"}>
+              {isSubmittingApplication ? "提交中..." : application?.status === "pending" ? "审核中" : "提交作者申请"}
+            </button>
+          </form>
+        ) : null}
       </section>
     </main>
   );

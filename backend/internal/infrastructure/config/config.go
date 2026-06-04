@@ -12,34 +12,34 @@ import (
 )
 
 type Config struct {
-	HTTPAddr               string
-	DatabaseDSN            string
-	JWTSecret              string
-	GeneratedJWTSecret     bool
-	TokenTTL               time.Duration
-	AdminUsername          string
-	AdminPassword          string
-	GeneratedAdminPassword bool
-	UploadDir              string
-	CoverDir               string
-	MaxUploadBytes         int64
-	MaxCoverBytes          int64
-	DefaultCoverFile       string
-	DBMaxOpenConns         int
-	DBMaxIdleConns         int
+	HTTPAddr                    string
+	DatabaseDSN                 string
+	JWTSecret                   string
+	GeneratedJWTSecret          bool
+	TokenTTL                    time.Duration
+	SuperAdminUsername          string
+	SuperAdminPassword          string
+	GeneratedSuperAdminPassword bool
+	UploadDir                   string
+	CoverDir                    string
+	MaxUploadBytes              int64
+	MaxCoverBytes               int64
+	DefaultCoverFile            string
+	DBMaxOpenConns              int
+	DBMaxIdleConns              int
 }
 
 func Load() (Config, error) {
 	cfg := Config{
-		HTTPAddr:         env("HTTP_ADDR", ":8000"),
-		AdminUsername:    env("ADMIN_USERNAME", "admin"),
-		UploadDir:        resolveProjectPath(env("UPLOAD_DIR", "data/uploads")),
-		CoverDir:         resolveProjectPath(env("COVER_DIR", "data/uploads/covers")),
-		MaxUploadBytes:   envInt64("MAX_UPLOAD_BYTES", 50*1024*1024),
-		MaxCoverBytes:    envInt64("MAX_COVER_BYTES", 10*1024*1024),
-		DefaultCoverFile: env("DEFAULT_COVER_FILE", ""),
-		DBMaxOpenConns:   envInt("DB_MAX_OPEN_CONNS", 10),
-		DBMaxIdleConns:   envInt("DB_MAX_IDLE_CONNS", 5),
+		HTTPAddr:           env("HTTP_ADDR", ":8000"),
+		SuperAdminUsername: env("SUPER_ADMIN_USERNAME", env("ADMIN_USERNAME", "admin")),
+		UploadDir:          resolveProjectPath(env("UPLOAD_DIR", "data/uploads")),
+		CoverDir:           resolveProjectPath(env("COVER_DIR", "data/uploads/covers")),
+		MaxUploadBytes:     envInt64("MAX_UPLOAD_BYTES", 50*1024*1024),
+		MaxCoverBytes:      envInt64("MAX_COVER_BYTES", 10*1024*1024),
+		DefaultCoverFile:   env("DEFAULT_COVER_FILE", ""),
+		DBMaxOpenConns:     envInt("DB_MAX_OPEN_CONNS", 10),
+		DBMaxIdleConns:     envInt("DB_MAX_IDLE_CONNS", 5),
 	}
 	cfg.DatabaseDSN = os.Getenv("DATABASE_DSN")
 	if cfg.DatabaseDSN == "" {
@@ -53,12 +53,12 @@ func Load() (Config, error) {
 	}
 	cfg.JWTSecret = secret
 
-	adminPassword := os.Getenv("ADMIN_PASSWORD")
-	if adminPassword == "" {
-		adminPassword = randomHex(9)
-		cfg.GeneratedAdminPassword = true
+	superAdminPassword := env("SUPER_ADMIN_PASSWORD", os.Getenv("ADMIN_PASSWORD"))
+	if superAdminPassword == "" {
+		superAdminPassword = randomHex(9)
+		cfg.GeneratedSuperAdminPassword = true
 	}
-	cfg.AdminPassword = adminPassword
+	cfg.SuperAdminPassword = superAdminPassword
 
 	ttlHours := envInt("TOKEN_TTL_HOURS", 24*7)
 	if ttlHours <= 0 {

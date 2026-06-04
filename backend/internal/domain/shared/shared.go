@@ -6,18 +6,27 @@ import (
 )
 
 type Role string
+type Scope string
 
 const (
-	RoleUser  Role = "user"
-	RoleAdmin Role = "admin"
+	RoleReader     Role = "reader"
+	RoleAuthor     Role = "author"
+	RoleReviewer   Role = "reviewer"
+	RoleSuperAdmin Role = "super_admin"
+)
+
+const (
+	ScopeFront Scope = "front"
+	ScopeAdmin Scope = "admin"
 )
 
 var ErrNotFound = errors.New("not found")
 
 type Actor struct {
-	UserID   int64
+	ActorID  int64
 	Username string
 	Role     Role
+	Scope    Scope
 }
 
 type AppError struct {
@@ -32,4 +41,24 @@ func (e *AppError) Error() string {
 
 func NewError(status int, code, message string) *AppError {
 	return &AppError{Status: status, Code: code, Message: message}
+}
+
+func (a Actor) IsFront() bool {
+	return a.Scope == ScopeFront
+}
+
+func (a Actor) IsAdmin() bool {
+	return a.Scope == ScopeAdmin
+}
+
+func (a Actor) IsAuthor() bool {
+	return a.Scope == ScopeFront && a.Role == RoleAuthor
+}
+
+func (a Actor) IsReviewer() bool {
+	return a.Scope == ScopeAdmin && (a.Role == RoleReviewer || a.Role == RoleSuperAdmin)
+}
+
+func (a Actor) IsSuperAdmin() bool {
+	return a.Scope == ScopeAdmin && a.Role == RoleSuperAdmin
 }

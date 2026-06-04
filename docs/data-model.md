@@ -1,12 +1,12 @@
 # 数据模型
 
-本文件定义 MVP 的 MySQL 数据模型和本地文件存储规则。
+本文件定义 Phase 10 的 MySQL 数据模型和本地文件存储规则。
 
 ## 表清单
 
 ### users
 
-用途：保存用户账号和角色。
+用途：保存前台用户账号和角色。
 
 字段：
 
@@ -14,7 +14,7 @@
 - `username`：唯一用户名。
 - `nickname`：昵称，注册时默认等于用户名。
 - `password_hash`：密码哈希。
-- `role`：`user` 或 `admin`。
+- `role`：`reader` 或 `author`。
 - `created_at`：创建时间。
 - `updated_at`：更新时间。
 
@@ -22,7 +22,28 @@
 
 - `username` 唯一。
 - `password_hash` 不允许为空。
-- `role` 默认 `user`。
+- `role` 默认 `reader`。
+
+### operators
+
+用途：保存后台运营账号。
+
+字段：
+
+- `id`：主键。
+- `username`：唯一用户名。
+- `password_hash`：密码哈希。
+- `role`：`super_admin` 或 `reviewer`。
+- `status`：`active` 或 `disabled`。
+- `created_by_operator_id`：创建人 ID，可为空。
+- `created_at`：创建时间。
+- `updated_at`：更新时间。
+
+约束：
+
+- `username` 唯一。
+- `password_hash` 不允许为空。
+- 系统初始化时至少需要 1 个 `super_admin`。
 
 ### categories
 
@@ -51,7 +72,7 @@
 - `hero_eyebrow`：首页 Hero 眉标题。
 - `hero_title`：首页 Hero 主标题。
 - `hero_description`：首页 Hero 描述小字。
-- `updated_by_user_id`：最近更新管理员 ID，可为空。
+- `updated_by_operator_id`：最近更新后台运营账号 ID，可为空。
 - `created_at`：创建时间。
 - `updated_at`：更新时间。
 
@@ -69,14 +90,14 @@
 
 - `id`：主键。
 - `title`：书名。
-- `author`：作者。
-- `owner_user_id`：作者用户 ID，引用 `users.id`。旧 `author` 字段进入兼容期，API 作者展示优先由 `owner_user_id` 关联用户计算。
+- `author`：作者展示名。
+- `owner_user_id`：作者用户 ID，引用 `users.id`。
 - `category_id`：分类 ID，可为空。
 - `description`：简介。
 - `chapter_count`：章节数。
 - `latest_chapter_title`：最新章节标题。
-- `recommend_score`：推荐度，整数，默认 `0`，越大越靠前。
-- `cover_path`：封面文件相对路径，可为空；由服务端生成，不来自用户输入。
+- `recommend_score`：推荐度，整数，默认 `0`。
+- `cover_path`：封面文件相对路径，可为空。
 - `source_upload_id`：来源上传记录 ID，可为空。
 - `created_at`：创建时间。
 - `updated_at`：更新时间。
@@ -84,7 +105,6 @@
 索引：
 
 - `title`
-- `author`
 - `owner_user_id`
 - `category_id`
 - `recommend_score`
@@ -116,12 +136,12 @@
 
 ### uploads
 
-用途：保存上传记录和源文件引用。
+用途：保存作者上传记录和源文件引用。
 
 字段：
 
 - `id`：主键。
-- `admin_user_id`：上传用户 ID，字段名保留兼容历史命名。
+- `user_id`：上传作者 ID。
 - `original_filename`：原始文件名，仅用于展示。
 - `stored_path`：服务端生成的相对存储路径。
 - `file_size`：文件大小。
@@ -134,20 +154,40 @@
 - `stored_path` 由服务端生成，不来自用户输入。
 - API 不向普通用户暴露 `stored_path`。
 
+### author_applications
+
+用途：保存作者申请记录。
+
+字段：
+
+- `id`：主键。
+- `user_id`：前台用户 ID。
+- `status`：`pending`、`approved` 或 `rejected`。
+- `pen_name`：可为空。
+- `reason`：可为空。
+- `review_note`：可为空。
+- `reviewed_by_operator_id`：审核运营账号 ID，可为空。
+- `reviewed_at`：审核时间，可为空。
+- `created_at`：创建时间。
+- `updated_at`：更新时间。
+
+约束：
+
+- 同一用户同一时间最多一条 `pending` 申请。
+
 ## 初始数据
 
 项目首次启动或 seed 时应包含：
 
-- 一个管理员账号，用户名和初始密码来自环境变量或本地开发配置。
+- 一个后台 `super_admin` 账号，用户名和初始密码来自环境变量或本地开发配置。
 - 若干基础分类，例如玄幻、都市、科幻、历史、游戏。
-- 至少一本示例小说和章节，便于 smoke check。
+- 示例前台读者、作者账号和示例书籍可按 smoke 需要初始化。
 
 ## 迁移规则
 
-- `users.nickname` 增量迁移时补齐为 `username`。
-- `books.owner_user_id` 增量迁移时优先按旧 `books.author = users.username` 匹配用户。
-- 无法匹配系统用户的旧书籍归属管理员账号，并在 API 中展示作者为“系统”。
-- `books.author` 暂不删除，用作兼容和迁移回退。
+- Phase 10 默认允许清空旧数据并按新模型重建。
+- 不要求兼容旧的 `user/admin` 角色语义。
+- 若需要保留示例数据，应按新角色模型重新初始化，而不是做旧数据迁移映射。
 
 ## 本地文件存储
 
@@ -162,10 +202,9 @@ data/uploads/
 - 目录由服务端创建。
 - 默认相对路径按仓库根目录解析，保证本地 `go run` 与 Docker 启动写入同一逻辑位置。
 - 文件名由服务端生成，避免使用原始文件名作为路径。
-- 仅允许 `.txt` 文件。
+- 仅允许作者上传 `.txt` 文件。
 - 上传大小限制在配置中定义，MVP 默认限制为 50MB。
-- 删除或替换书籍时，源文件处理策略必须在执行计划中明确。
-- 当前后台删除整本小说只删除 `books` 和级联 `chapters`，保留上传源文件和 `uploads` 记录用于追溯。
+- 作者删除整本小说时删除 `books` 和级联 `chapters`；上传源文件和 `uploads` 记录是否保留由实现阶段明确。
 
 封面文件保存到：
 

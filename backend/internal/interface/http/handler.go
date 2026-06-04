@@ -76,9 +76,13 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("GET /api/health", h.Health)
 	mux.HandleFunc("POST /api/auth/register", h.Register)
 	mux.HandleFunc("POST /api/auth/login", h.Login)
-	mux.HandleFunc("GET /api/auth/me", h.requireAuth(h.Me))
-	mux.HandleFunc("PATCH /api/auth/me", h.requireAuth(h.UpdateMe))
-	mux.HandleFunc("PATCH /api/auth/password", h.requireAuth(h.ChangePassword))
+	mux.HandleFunc("GET /api/auth/me", h.requireAuth(h.requireFront(h.Me)))
+	mux.HandleFunc("PATCH /api/auth/me", h.requireAuth(h.requireFront(h.UpdateMe)))
+	mux.HandleFunc("PATCH /api/auth/password", h.requireAuth(h.requireFront(h.ChangePassword)))
+	mux.HandleFunc("POST /api/admin/auth/login", h.AdminLogin)
+	mux.HandleFunc("GET /api/admin/auth/me", h.requireAuth(h.requireAdminScope(h.AdminMe)))
+	mux.HandleFunc("POST /api/author-applications", h.requireAuth(h.requireFront(h.SubmitAuthorApplication)))
+	mux.HandleFunc("GET /api/author-applications/me", h.requireAuth(h.requireFront(h.MyAuthorApplication)))
 	mux.HandleFunc("GET /api/categories", h.Categories)
 	mux.HandleFunc("GET /api/site-settings", h.SiteSettings)
 	mux.HandleFunc("GET /api/site-settings/icon", h.SiteIcon)
@@ -88,28 +92,29 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("GET /api/books/{bookId}/chapters", h.ChapterList)
 	mux.HandleFunc("GET /api/books/{bookId}/chapters/{chapterId}", h.requireAuth(h.ChapterDetail))
 	mux.HandleFunc("GET /api/books/{bookId}/cover", h.BookCover)
-	mux.HandleFunc("POST /api/books/{bookId}/cover", h.requireAuth(h.UploadBookCover))
-	mux.HandleFunc("GET /api/me/books", h.requireAuth(h.MyBooks))
-	mux.HandleFunc("POST /api/me/books", h.requireAuth(h.CreateMyBook))
-	mux.HandleFunc("POST /api/me/books/upload", h.requireAuth(h.UploadBook))
-	mux.HandleFunc("PATCH /api/books/{bookId}", h.requireAuth(h.UpdateBook))
-	mux.HandleFunc("DELETE /api/books/{bookId}", h.requireAuth(h.DeleteBook))
-	mux.HandleFunc("POST /api/books/{bookId}/chapters", h.requireAuth(h.AddChapter))
-	mux.HandleFunc("PATCH /api/books/{bookId}/chapters/{chapterId}", h.requireAuth(h.UpdateChapter))
-	mux.HandleFunc("DELETE /api/books/{bookId}/chapters/{chapterId}", h.requireAuth(h.DeleteChapter))
-	mux.HandleFunc("POST /api/admin/categories", h.requireAuth(h.requireAdmin(h.CreateCategory)))
-	mux.HandleFunc("PATCH /api/admin/categories/{categoryId}", h.requireAuth(h.requireAdmin(h.UpdateCategory)))
-	mux.HandleFunc("DELETE /api/admin/categories/{categoryId}", h.requireAuth(h.requireAdmin(h.DeleteCategory)))
-	mux.HandleFunc("PATCH /api/admin/site-settings", h.requireAuth(h.requireAdmin(h.UpdateSiteSettings)))
-	mux.HandleFunc("POST /api/admin/site-settings/icon", h.requireAuth(h.requireAdmin(h.UploadSiteIcon)))
-	mux.HandleFunc("GET /api/admin/books", h.requireAuth(h.requireAdmin(h.AdminBooks)))
-	mux.HandleFunc("POST /api/admin/books", h.requireAuth(h.requireAdmin(h.CreateMyBook)))
-	mux.HandleFunc("POST /api/admin/books/upload", h.requireAuth(h.requireAdmin(h.UploadBook)))
-	mux.HandleFunc("PATCH /api/admin/books/{bookId}", h.requireAuth(h.requireAdmin(h.UpdateBook)))
-	mux.HandleFunc("DELETE /api/admin/books/{bookId}", h.requireAuth(h.requireAdmin(h.DeleteBook)))
-	mux.HandleFunc("POST /api/admin/books/{bookId}/chapters", h.requireAuth(h.requireAdmin(h.AddChapter)))
-	mux.HandleFunc("PATCH /api/admin/books/{bookId}/chapters/{chapterId}", h.requireAuth(h.requireAdmin(h.UpdateChapter)))
-	mux.HandleFunc("DELETE /api/admin/books/{bookId}/chapters/{chapterId}", h.requireAuth(h.requireAdmin(h.DeleteChapter)))
+	mux.HandleFunc("POST /api/books/{bookId}/cover", h.requireAuth(h.requireAuthor(h.UploadBookCover)))
+	mux.HandleFunc("GET /api/me/books", h.requireAuth(h.requireAuthor(h.MyBooks)))
+	mux.HandleFunc("POST /api/me/books", h.requireAuth(h.requireAuthor(h.CreateMyBook)))
+	mux.HandleFunc("POST /api/me/books/upload", h.requireAuth(h.requireAuthor(h.UploadBook)))
+	mux.HandleFunc("PATCH /api/books/{bookId}", h.requireAuth(h.requireAuthor(h.UpdateBook)))
+	mux.HandleFunc("DELETE /api/books/{bookId}", h.requireAuth(h.requireAuthor(h.DeleteBook)))
+	mux.HandleFunc("POST /api/books/{bookId}/chapters", h.requireAuth(h.requireAuthor(h.AddChapter)))
+	mux.HandleFunc("PATCH /api/books/{bookId}/chapters/{chapterId}", h.requireAuth(h.requireAuthor(h.UpdateChapter)))
+	mux.HandleFunc("DELETE /api/books/{bookId}/chapters/{chapterId}", h.requireAuth(h.requireAuthor(h.DeleteChapter)))
+	mux.HandleFunc("POST /api/admin/categories", h.requireAuth(h.requireReviewer(h.CreateCategory)))
+	mux.HandleFunc("PATCH /api/admin/categories/{categoryId}", h.requireAuth(h.requireReviewer(h.UpdateCategory)))
+	mux.HandleFunc("DELETE /api/admin/categories/{categoryId}", h.requireAuth(h.requireReviewer(h.DeleteCategory)))
+	mux.HandleFunc("PATCH /api/admin/site-settings", h.requireAuth(h.requireReviewer(h.UpdateSiteSettings)))
+	mux.HandleFunc("POST /api/admin/site-settings/icon", h.requireAuth(h.requireReviewer(h.UploadSiteIcon)))
+	mux.HandleFunc("GET /api/admin/books", h.requireAuth(h.requireReviewer(h.AdminBooks)))
+	mux.HandleFunc("PATCH /api/admin/books/{bookId}/recommend-score", h.requireAuth(h.requireReviewer(h.UpdateRecommendScore)))
+	mux.HandleFunc("GET /api/admin/author-applications", h.requireAuth(h.requireReviewer(h.AdminAuthorApplications)))
+	mux.HandleFunc("PATCH /api/admin/author-applications/{applicationId}", h.requireAuth(h.requireReviewer(h.ReviewAuthorApplication)))
+	mux.HandleFunc("GET /api/admin/users", h.requireAuth(h.requireReviewer(h.AdminUsers)))
+	mux.HandleFunc("PATCH /api/admin/users/{userId}/author-role", h.requireAuth(h.requireReviewer(h.PromoteUserToAuthor)))
+	mux.HandleFunc("POST /api/admin/operators", h.requireAuth(h.requireSuperAdmin(h.CreateOperator)))
+	mux.HandleFunc("GET /api/admin/operators", h.requireAuth(h.requireSuperAdmin(h.Operators)))
+	mux.HandleFunc("PATCH /api/admin/operators/{operatorId}", h.requireAuth(h.requireSuperAdmin(h.UpdateOperator)))
 	return h.withCommonHeaders(mux)
 }
 
@@ -158,6 +163,22 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *Handler) AdminLogin(w http.ResponseWriter, r *http.Request) {
+	var req identitycommand.AdminLogin
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	result, err := h.identityCommands.AdminLogin.Handle(r.Context(), req)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"token":    result.Token,
+		"operator": publicOperator(result.Operator),
+	})
+}
+
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	user, err := h.identityQueries.CurrentUser.Handle(r.Context(), mustActor(r))
 	if err != nil {
@@ -165,6 +186,15 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, publicUser(user))
+}
+
+func (h *Handler) AdminMe(w http.ResponseWriter, r *http.Request) {
+	operator, err := h.identityQueries.CurrentOperator.Handle(r.Context(), mustActor(r))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, publicOperator(operator))
 }
 
 func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
@@ -200,6 +230,32 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"changed": true})
+}
+
+func (h *Handler) SubmitAuthorApplication(w http.ResponseWriter, r *http.Request) {
+	var req identitycommand.SubmitAuthorApplication
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	item, err := h.identityCommands.SubmitAuthorApplication.Handle(r.Context(), mustActor(r), req)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, item)
+}
+
+func (h *Handler) MyAuthorApplication(w http.ResponseWriter, r *http.Request) {
+	item, err := h.identityQueries.MyAuthorApplication.Handle(r.Context(), mustActor(r))
+	if err != nil {
+		if err == shared.ErrNotFound {
+			writeError(w, shared.NewError(http.StatusNotFound, "NOT_FOUND", "author application not found"))
+			return
+		}
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, item)
 }
 
 func (h *Handler) Categories(w http.ResponseWriter, r *http.Request) {
@@ -352,33 +408,13 @@ func (h *Handler) BookCover(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(data)
 }
 
-func (h *Handler) AdminBooks(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query()
-	page := parseInt(query.Get("page"), 1)
-	pageSize := parseInt(query.Get("pageSize"), 20)
-	items, total, err := h.bookQueries.SearchBooks.Handle(r.Context(), bookquery.SearchBooks{
-		Keyword:      query.Get("q"),
-		CategoryName: query.Get("category"),
-		Page:         page,
-		PageSize:     pageSize,
-	})
-	if err != nil {
-		writeError(w, err)
-		return
-	}
-	for i := range items {
-		items[i].CoverURL = "/api/books/" + strconv.FormatInt(items[i].ID, 10) + "/cover"
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": items, "total": total})
-}
-
 func (h *Handler) MyBooks(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	page := parseInt(query.Get("page"), 1)
 	pageSize := parseInt(query.Get("pageSize"), 20)
 	categoryID := parseInt64(query.Get("categoryId"), 0)
 	items, total, err := h.bookQueries.ListOwnedBooks.Handle(r.Context(), bookquery.ListOwnedBooks{
-		OwnerUserID: mustActor(r).UserID,
+		OwnerUserID: mustActor(r).ActorID,
 		Keyword:     query.Get("q"),
 		CategoryID:  categoryID,
 		Page:        page,
@@ -607,6 +643,135 @@ func (h *Handler) UploadSiteIcon(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, publicSiteSettings(item))
 }
 
+func (h *Handler) AdminBooks(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	page := parseInt(query.Get("page"), 1)
+	pageSize := parseInt(query.Get("pageSize"), 20)
+	items, total, err := h.bookQueries.SearchBooks.Handle(r.Context(), bookquery.SearchBooks{
+		Keyword:      query.Get("q"),
+		CategoryName: query.Get("category"),
+		Page:         page,
+		PageSize:     pageSize,
+	})
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	for i := range items {
+		items[i].CoverURL = "/api/books/" + strconv.FormatInt(items[i].ID, 10) + "/cover"
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items, "total": total})
+}
+
+func (h *Handler) UpdateRecommendScore(w http.ResponseWriter, r *http.Request) {
+	bookID, ok := pathInt(w, r, "bookId")
+	if !ok {
+		return
+	}
+	var req bookcommand.UpdateRecommendScore
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	item, err := h.bookCommands.UpdateRecommendScore.Handle(r.Context(), mustActor(r), bookID, req)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	item.CoverURL = "/api/books/" + strconv.FormatInt(item.ID, 10) + "/cover"
+	writeJSON(w, http.StatusOK, item)
+}
+
+func (h *Handler) AdminAuthorApplications(w http.ResponseWriter, r *http.Request) {
+	items, err := h.identityQueries.ListAuthorApplications.Handle(r.Context())
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+func (h *Handler) ReviewAuthorApplication(w http.ResponseWriter, r *http.Request) {
+	applicationID, ok := pathInt(w, r, "applicationId")
+	if !ok {
+		return
+	}
+	var req identitycommand.ReviewAuthorApplication
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	item, err := h.identityCommands.ReviewAuthorApplication.Handle(r.Context(), mustActor(r), applicationID, req)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, item)
+}
+
+func (h *Handler) AdminUsers(w http.ResponseWriter, r *http.Request) {
+	items, err := h.identityQueries.ListUsers.Handle(r.Context())
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+func (h *Handler) PromoteUserToAuthor(w http.ResponseWriter, r *http.Request) {
+	userID, ok := pathInt(w, r, "userId")
+	if !ok {
+		return
+	}
+	item, err := h.identityCommands.PromoteUserToAuthor.Handle(r.Context(), mustActor(r), userID)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, publicUser(item))
+}
+
+func (h *Handler) CreateOperator(w http.ResponseWriter, r *http.Request) {
+	var req identitycommand.CreateOperator
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	item, err := h.identityCommands.CreateOperator.Handle(r.Context(), mustActor(r), req)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, publicOperator(item))
+}
+
+func (h *Handler) Operators(w http.ResponseWriter, r *http.Request) {
+	items, err := h.identityQueries.ListOperators.Handle(r.Context())
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	payload := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		payload = append(payload, publicOperator(item))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": payload})
+}
+
+func (h *Handler) UpdateOperator(w http.ResponseWriter, r *http.Request) {
+	operatorID, ok := pathInt(w, r, "operatorId")
+	if !ok {
+		return
+	}
+	var req identitycommand.UpdateOperator
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	item, err := h.identityCommands.UpdateOperator.Handle(r.Context(), mustActor(r), operatorID, req)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, publicOperator(item))
+}
+
 func (h *Handler) SiteIcon(w http.ResponseWriter, r *http.Request) {
 	item, err := h.siteQueries.GetSettings.Handle(r.Context())
 	if err != nil {
@@ -642,18 +807,59 @@ func (h *Handler) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		actor := shared.Actor{
-			UserID:   claims.UserID,
+			ActorID:  claims.ActorID,
 			Username: claims.Username,
 			Role:     claims.Role,
+			Scope:    claims.Scope,
 		}
 		next(w, r.WithContext(context.WithValue(r.Context(), actorKey, actor)))
 	}
 }
 
-func (h *Handler) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
+func (h *Handler) requireFront(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if mustActor(r).Role != shared.RoleAdmin {
-			writeError(w, shared.NewError(http.StatusForbidden, "FORBIDDEN", "admin required"))
+		if !mustActor(r).IsFront() {
+			writeError(w, shared.NewError(http.StatusForbidden, "FORBIDDEN", "front account required"))
+			return
+		}
+		next(w, r)
+	}
+}
+
+func (h *Handler) requireAdminScope(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !mustActor(r).IsAdmin() {
+			writeError(w, shared.NewError(http.StatusForbidden, "FORBIDDEN", "admin account required"))
+			return
+		}
+		next(w, r)
+	}
+}
+
+func (h *Handler) requireAuthor(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !mustActor(r).IsAuthor() {
+			writeError(w, shared.NewError(http.StatusForbidden, "FORBIDDEN", "author required"))
+			return
+		}
+		next(w, r)
+	}
+}
+
+func (h *Handler) requireReviewer(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !mustActor(r).IsReviewer() {
+			writeError(w, shared.NewError(http.StatusForbidden, "FORBIDDEN", "reviewer required"))
+			return
+		}
+		next(w, r)
+	}
+}
+
+func (h *Handler) requireSuperAdmin(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !mustActor(r).IsSuperAdmin() {
+			writeError(w, shared.NewError(http.StatusForbidden, "FORBIDDEN", "super admin required"))
 			return
 		}
 		next(w, r)
@@ -703,6 +909,10 @@ func writeError(w http.ResponseWriter, err error) {
 
 func publicUser(user identityentity.User) map[string]any {
 	return map[string]any{"id": user.ID, "username": user.Username, "nickname": user.Nickname, "role": user.Role}
+}
+
+func publicOperator(operator identityentity.Operator) map[string]any {
+	return map[string]any{"id": operator.ID, "username": operator.Username, "role": operator.Role}
 }
 
 func publicSiteSettings(item siteentity.Settings) siteentity.Settings {

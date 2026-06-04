@@ -17,6 +17,7 @@ type BookRepository interface {
 	CreateBookWithChapters(ctx context.Context, item bookentity.Book, categoryID *int64, uploadID int64, chapters []bookentity.ChapterDraft) (int64, error)
 	CreateBook(ctx context.Context, item bookentity.Book, categoryID *int64) (bookentity.Book, error)
 	UpdateBookMetadata(ctx context.Context, bookID int64, item bookentity.Book, categoryID *int64) (bookentity.Book, error)
+	UpdateRecommendScore(ctx context.Context, bookID int64, recommendScore int) (bookentity.Book, error)
 	DeleteBook(ctx context.Context, bookID int64) error
 	AddChapter(ctx context.Context, bookID int64, item bookentity.Chapter) (bookentity.Chapter, error)
 	UpdateChapter(ctx context.Context, bookID, chapterID int64, item bookentity.Chapter) (bookentity.Chapter, error)

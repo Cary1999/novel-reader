@@ -8,16 +8,16 @@ import (
 )
 
 type SiteSettings struct {
-	ID              int64          `gorm:"column:id;primaryKey"`
-	BrandName       string         `gorm:"column:brand_name"`
-	BrandSubtitle   string         `gorm:"column:brand_subtitle"`
-	BrandIconPath   sql.NullString `gorm:"column:brand_icon_path"`
-	HeroEyebrow     string         `gorm:"column:hero_eyebrow"`
-	HeroTitle       string         `gorm:"column:hero_title"`
-	HeroDescription string         `gorm:"column:hero_description"`
-	UpdatedByUserID sql.NullInt64  `gorm:"column:updated_by_user_id"`
-	CreatedAt       time.Time      `gorm:"column:created_at"`
-	UpdatedAt       time.Time      `gorm:"column:updated_at"`
+	ID                  int64          `gorm:"column:id;primaryKey"`
+	BrandName           string         `gorm:"column:brand_name"`
+	BrandSubtitle       string         `gorm:"column:brand_subtitle"`
+	BrandIconPath       sql.NullString `gorm:"column:brand_icon_path"`
+	HeroEyebrow         string         `gorm:"column:hero_eyebrow"`
+	HeroTitle           string         `gorm:"column:hero_title"`
+	HeroDescription     string         `gorm:"column:hero_description"`
+	UpdatedByOperatorID sql.NullInt64  `gorm:"column:updated_by_operator_id"`
+	CreatedAt           time.Time      `gorm:"column:created_at"`
+	UpdatedAt           time.Time      `gorm:"column:updated_at"`
 }
 
 func (SiteSettings) TableName() string {
@@ -34,8 +34,8 @@ func (m *SiteSettings) FromEntity(e *siteentity.Settings) {
 	m.HeroEyebrow = e.HeroEyebrow
 	m.HeroTitle = e.HeroTitle
 	m.HeroDescription = e.HeroDescription
-	if e.UpdatedByUserID != nil {
-		m.UpdatedByUserID = sql.NullInt64{Int64: *e.UpdatedByUserID, Valid: true}
+	if e.UpdatedByOperatorID != nil {
+		m.UpdatedByOperatorID = sql.NullInt64{Int64: *e.UpdatedByOperatorID, Valid: true}
 	}
 	m.CreatedAt = e.CreatedAt
 	m.UpdatedAt = e.UpdatedAt
@@ -55,8 +55,8 @@ func (m SiteSettings) ToEntity() siteentity.Settings {
 	if m.BrandIconPath.Valid {
 		item.BrandIconPath = &m.BrandIconPath.String
 	}
-	if m.UpdatedByUserID.Valid {
-		item.UpdatedByUserID = &m.UpdatedByUserID.Int64
+	if m.UpdatedByOperatorID.Valid {
+		item.UpdatedByOperatorID = &m.UpdatedByOperatorID.Int64
 	}
 	return item
 }

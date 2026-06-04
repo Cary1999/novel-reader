@@ -43,7 +43,7 @@ func refreshBookChapterStats(ctx context.Context, tx txQueryer, bookID int64) er
 }
 
 func authorExprSQL() string {
-	return "CASE WHEN u.role = 'admin' THEN '系统' ELSE COALESCE(u.username, b.author) END"
+	return "COALESCE(u.nickname, u.username, b.author)"
 }
 
 func booksSelectSQL() string {
@@ -66,10 +66,10 @@ func booksBaseCountSQL() string {
 }
 
 func legacyAuthor(ownerUserID int64) string {
-	if ownerUserID <= 0 {
-		return "系统"
+	if ownerUserID > 0 {
+		return ""
 	}
-	return ""
+	return "佚名"
 }
 
 func mapNotFound(err error) error {

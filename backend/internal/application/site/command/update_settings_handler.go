@@ -43,7 +43,7 @@ func (h *UpdateSettingsHandler) Handle(ctx context.Context, actor shared.Actor, 
 		HeroEyebrow:     input.HeroEyebrow,
 		HeroTitle:       input.HeroTitle,
 		HeroDescription: input.HeroDescription,
-	}, current.BrandIconPath, actor.UserID)
+	}, current.BrandIconPath, actor.ActorID)
 	if err != nil {
 		return siteentity.Settings{}, err
 	}

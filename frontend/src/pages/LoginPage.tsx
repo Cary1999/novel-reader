@@ -7,13 +7,13 @@ import { useAuth } from "../auth/AuthContext";
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated, login } = useAuth();
+  const { isAdminPortal, isAuthenticated, login } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? "/";
+  const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? (isAdminPortal ? "/admin" : "/");
 
   if (isAuthenticated) {
     return <Navigate to={from} replace />;
@@ -43,9 +43,13 @@ export function LoginPage() {
     <main className="page auth-page shell">
       <section className="auth-shell">
         <div className="auth-aside">
-          <p className="eyebrow">登录</p>
-          <h1>继续你的阅读进度</h1>
-          <p className="muted">登录后可以阅读章节正文、上传 txt 小说，并维护自己的作品内容。</p>
+          <p className="eyebrow">{isAdminPortal ? "后台登录" : "登录"}</p>
+          <h1>{isAdminPortal ? "进入审核与运营后台" : "继续你的阅读进度"}</h1>
+          <p className="muted">
+            {isAdminPortal
+              ? "后台账号与前台读者、作者账号完全独立。"
+              : "登录后可以阅读章节正文，读者还可以提交作者申请，作者可以维护自己的作品。"}
+          </p>
         </div>
         <section className="auth-panel">
           <form className="form-stack" onSubmit={handleSubmit}>
@@ -63,7 +67,7 @@ export function LoginPage() {
               {isSubmitting ? "登录中..." : "登录"}
             </button>
           </form>
-          <p className="auth-switch">还没有账号？<Link to="/register" state={{ from: location.state }}>去注册</Link></p>
+          {!isAdminPortal ? <p className="auth-switch">还没有账号？<Link to="/register" state={{ from: location.state }}>去注册</Link></p> : null}
         </section>
       </section>
     </main>

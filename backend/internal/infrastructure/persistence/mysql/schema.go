@@ -6,10 +6,20 @@ CREATE TABLE IF NOT EXISTS users (
   username VARCHAR(64) NOT NULL UNIQUE,
   nickname VARCHAR(64) NOT NULL DEFAULT '',
   password_hash VARCHAR(255) NOT NULL,
-  role VARCHAR(20) NOT NULL DEFAULT 'user',
+  role VARCHAR(20) NOT NULL DEFAULT 'reader',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_users_role (role)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS operators (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  username VARCHAR(64) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  role VARCHAR(20) NOT NULL DEFAULT 'reviewer',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_operators_role (role)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS categories (
@@ -26,22 +36,39 @@ CREATE TABLE IF NOT EXISTS site_settings (
   hero_eyebrow VARCHAR(120) NOT NULL,
   hero_title VARCHAR(255) NOT NULL,
   hero_description VARCHAR(500) NOT NULL,
-  updated_by_user_id BIGINT NULL,
+  updated_by_operator_id BIGINT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  CONSTRAINT fk_site_settings_updated_by FOREIGN KEY (updated_by_user_id) REFERENCES users(id)
+  CONSTRAINT fk_site_settings_updated_by_operator FOREIGN KEY (updated_by_operator_id) REFERENCES operators(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS uploads (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  admin_user_id BIGINT NOT NULL,
+  actor_user_id BIGINT NOT NULL,
   original_filename VARCHAR(255) NOT NULL,
   stored_path VARCHAR(255) NOT NULL UNIQUE,
   file_size BIGINT NOT NULL,
   status VARCHAR(20) NOT NULL,
   error_message VARCHAR(512) NOT NULL DEFAULT '',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_uploads_admin FOREIGN KEY (admin_user_id) REFERENCES users(id)
+  CONSTRAINT fk_uploads_actor_user FOREIGN KEY (actor_user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS author_applications (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  pen_name VARCHAR(64) NOT NULL,
+  reason VARCHAR(500) NOT NULL DEFAULT '',
+  status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  review_note VARCHAR(500) NOT NULL DEFAULT '',
+  reviewed_by_operator_id BIGINT NULL,
+  reviewed_at TIMESTAMP NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_author_applications_user_id (user_id),
+  INDEX idx_author_applications_status (status),
+  CONSTRAINT fk_author_applications_user FOREIGN KEY (user_id) REFERENCES users(id),
+  CONSTRAINT fk_author_applications_reviewed_by FOREIGN KEY (reviewed_by_operator_id) REFERENCES operators(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS books (

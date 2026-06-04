@@ -2,6 +2,7 @@
 .env
 .codegraph
 .cache/
+.trae
 
 # Local build outputs
 backend/data/

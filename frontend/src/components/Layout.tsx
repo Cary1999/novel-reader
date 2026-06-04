@@ -42,12 +42,10 @@ export function Layout() {
                 {isFrontPortal ? (
                   <Link className="user-chip" to="/account">
                     {user && "avatarUrl" in user && user.avatarUrl ? <img className="user-chip-avatar" src={user.avatarUrl} alt="" /> : null}
-                    <span className="user-chip-label">当前用户</span>
                     <strong>{frontDisplayName}</strong>
                   </Link>
                 ) : (
                   <span className="user-chip">
-                    <span className="user-chip-label">后台账号</span>
                     <strong>{user?.username}</strong>
                   </span>
                 )}

@@ -5,7 +5,6 @@ import uploadentity "novel-reader/backend/internal/domain/upload/entity"
 type Upload struct {
 	ID               int64
 	ActorUserID      int64
-	AdminUserID      int64
 	OriginalFilename string
 	StoredPath       string
 	FileSize         int64
@@ -15,7 +14,6 @@ type Upload struct {
 
 func (m *Upload) FromEntity(e *uploadentity.Upload) {
 	m.ActorUserID = e.ActorUserID
-	m.AdminUserID = e.ActorUserID
 	m.OriginalFilename = e.OriginalFilename
 	m.StoredPath = e.StoredPath
 	m.FileSize = e.FileSize
@@ -24,19 +22,10 @@ func (m *Upload) FromEntity(e *uploadentity.Upload) {
 
 func (m Upload) ToEntity() uploadentity.Upload {
 	return uploadentity.Upload{
-		ActorUserID:      firstNonZero(m.ActorUserID, m.AdminUserID),
+		ActorUserID:      m.ActorUserID,
 		OriginalFilename: m.OriginalFilename,
 		StoredPath:       m.StoredPath,
 		FileSize:         m.FileSize,
 		Status:           m.Status,
 	}
-}
-
-func firstNonZero(values ...int64) int64 {
-	for _, value := range values {
-		if value != 0 {
-			return value
-		}
-	}
-	return 0
 }

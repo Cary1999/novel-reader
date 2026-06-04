@@ -122,17 +122,6 @@ export function BookshelfGroupPage() {
     }
   }
 
-  async function toggleGroupPin() {
-    if (!group) return;
-    try {
-      const updated = await apiClient.updateBookshelfGroup(group.id, { pinned: !group.isPinned });
-      setGroup(updated);
-      await load();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "分组置顶失败");
-    }
-  }
-
   async function togglePin(entry: BookshelfEntry) {
     try {
       await apiClient.updateBookshelfBook(entry.bookId, { pinned: !entry.isPinned });
@@ -186,14 +175,10 @@ export function BookshelfGroupPage() {
     <main className="page shell">
       <section className="page-banner">
         <div>
-          <p className="eyebrow">书架分组</p>
           <h1>{group.name}</h1>
-          <p className="muted">这个分组里现在有 {total} 本书。你可以继续置顶、移动，整理完再回到书架首页。</p>
+          <p className="muted">这个分组里现在有 {total} 本书。你可以继续移动，整理完再回到书架首页。</p>
         </div>
         <div className="bookshelf-detail-actions">
-          <button className="ghost-button compact" type="button" onClick={() => void toggleGroupPin()}>
-            {group.isPinned ? "取消分组置顶" : "置顶分组"}
-          </button>
           <button className="ghost-button compact" type="button" onClick={() => void renameGroup()}>
             重命名
           </button>
@@ -207,14 +192,7 @@ export function BookshelfGroupPage() {
       </section>
 
       {error ? <p className="form-error">{error}</p> : null}
-
-      <section className="section-heading">
-        <div>
-          <p className="eyebrow">分组内容</p>
-          <h2>{group.name}</h2>
-        </div>
-      </section>
-
+      
       {!entries.length ? (
         <EmptyState title="这个分组还是空的" description="可以从书架首页的书籍菜单里，把想看的书移动进来。" />
       ) : (

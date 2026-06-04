@@ -1,4 +1,4 @@
-import { BookOpen, List, LockKeyhole, Plus, ScrollText } from "lucide-react";
+import { BookOpen, List, LockKeyhole, Minus, Plus, ScrollText } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { apiClient, ApiError } from "../api/client";
@@ -15,7 +15,8 @@ export function BookDetailPage() {
   const [chapters, setChapters] = useState<ChapterSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [isInBookshelf, setIsInBookshelf] = useState(false);
 
   async function load() {
     try {
@@ -27,6 +28,17 @@ export function BookDetailPage() {
       ]);
       setBook(bookResponse);
       setChapters(chapterResponse.items ?? []);
+      setActionError("");
+      if (isAuthenticated) {
+        try {
+          await apiClient.bookshelfEntry(bookId);
+          setIsInBookshelf(true);
+        } catch {
+          setIsInBookshelf(false);
+        }
+      } else {
+        setIsInBookshelf(false);
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "书籍详情加载失败");
     } finally {
@@ -36,17 +48,27 @@ export function BookDetailPage() {
 
   async function addToBookshelf() {
     try {
-      setMessage("");
+      setActionError("");
       await apiClient.addToBookshelf(bookId);
-      setMessage("已加入书架");
+      setIsInBookshelf(true);
     } catch (err) {
-      setMessage(err instanceof ApiError ? err.message : "加入书架失败");
+      setActionError(err instanceof ApiError ? err.message : "加入书架失败");
+    }
+  }
+
+  async function removeFromBookshelf() {
+    try {
+      setActionError("");
+      await apiClient.removeFromBookshelf(bookId);
+      setIsInBookshelf(false);
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "取消加入书架失败");
     }
   }
 
   useEffect(() => {
     void load();
-  }, [bookId]);
+  }, [bookId, isAuthenticated]);
 
   function openChapter(chapterId: number) {
     if (!isAuthenticated) {
@@ -100,14 +122,18 @@ export function BookDetailPage() {
               </button>
             ) : null}
             {isAuthenticated ? (
-              <button className="ghost-button" type="button" onClick={() => void addToBookshelf()}>
-                <Plus size={18} aria-hidden="true" />
-                加入书架
+              <button
+                className="ghost-button"
+                type="button"
+                onClick={() => void (isInBookshelf ? removeFromBookshelf() : addToBookshelf())}
+              >
+                {isInBookshelf ? <Minus size={18} aria-hidden="true" /> : <Plus size={18} aria-hidden="true" />}
+                {isInBookshelf ? "取消加入书架" : "加入书架"}
               </button>
             ) : null}
             <Link className="ghost-button" to="/">返回首页</Link>
           </div>
-          {message ? <p className="success-banner">{message}</p> : null}
+          {actionError ? <p className="form-error">{actionError}</p> : null}
           <div className="detail-notes">
             <span><ScrollText size={16} aria-hidden="true" />目录随上传和编辑实时更新</span>
             <span><List size={16} aria-hidden="true" />支持按章节连续阅读</span>

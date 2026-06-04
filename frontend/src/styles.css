@@ -1206,6 +1206,12 @@ textarea:focus {
   font-weight: 800;
 }
 
+.book-chip-state {
+  border: 1px solid rgba(47, 124, 99, 0.18);
+  background: rgba(47, 124, 99, 0.08);
+  color: var(--green);
+}
+
 .book-card-count {
   color: var(--muted);
   font-size: 0.86rem;

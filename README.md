@@ -64,6 +64,7 @@ npm run dev
 ## 配置说明（.env）
 
 项目通过 `.env` 控制 Compose 端口、MySQL 账号密码、后端 DSN、JWT 密钥、管理员账号等。
+`.env.example` 主要面向 Docker Compose；如果你直接在本机跑 `go run ./cmd/server`，建议单独准备一份本地 `.env`，把上传路径改成 `data/uploads` 这一类仓库内相对路径。
 
 常用参数：
 
@@ -74,9 +75,10 @@ npm run dev
 - `MYSQL_USER` / `MYSQL_PASSWORD`：业务用户与密码（默认用户 `novel_reader`）
 - `MYSQL_DATABASE`：数据库名（默认 `novel_reader`）
 - `DATABASE_DSN`：后端连接 DSN（Compose 内默认连 `mysql:3306`）
-- `UPLOAD_DIR`：容器内上传目录（默认 `/app/data/uploads`）
+- `UPLOAD_DIR`：上传目录（Docker 示例默认 `/app/data/uploads`；本机直跑建议用 `data/uploads`）
 - `MAX_UPLOAD_BYTES`：上传大小限制（默认 `52428800`，即 50MB）
-- `COVER_DIR`：封面存储目录（默认 `/app/data/uploads/covers`）
+- `COVER_DIR`：封面存储目录（Docker 示例默认 `/app/data/uploads/covers`；本机直跑建议用 `data/uploads/covers`）
+- `AVATAR_DIR`：头像存储目录（Docker 示例默认 `/app/data/uploads/avatars`；本机直跑建议用 `data/uploads/avatars`）
 - `MAX_COVER_BYTES`：封面大小限制（默认 `10485760`，即 10MB）
 - `DEFAULT_COVER_FILE`：默认封面文件路径（可选）。当书籍未上传封面时，`GET /api/books/{id}/cover` 会返回该文件内容。可写绝对路径，也可写相对路径（相对 `COVER_DIR`）。
 - `JWT_SECRET`：JWT 密钥（本地也建议改掉）

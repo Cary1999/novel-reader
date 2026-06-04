@@ -202,6 +202,35 @@ func TestReviewerCanPromoteReaderToAuthor(t *testing.T) {
 	}
 }
 
+func TestPromotedReaderTokenCanAccessAuthorEndpointsWithoutReLogin(t *testing.T) {
+	handler, tokens := testPromoteAwareHandler(t)
+	readerToken, err := tokens.Issue(identityentity.User{ID: 7, Username: "reader", Role: shared.RoleReader})
+	if err != nil {
+		t.Fatal(err)
+	}
+	adminToken, err := tokens.IssueOperator(identityentity.Operator{ID: 99, Username: "reviewer", Role: shared.RoleReviewer})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	promoteReq := httptest.NewRequest(http.MethodPatch, "/api/admin/users/7/author-role", strings.NewReader(`{"action":"promote_to_author"}`))
+	promoteReq.Header.Set("Authorization", "Bearer "+adminToken)
+	promoteRec := httptest.NewRecorder()
+	handler.ServeHTTP(promoteRec, promoteReq)
+	if promoteRec.Code != http.StatusOK {
+		t.Fatalf("promote expected 200, got %d body=%s", promoteRec.Code, promoteRec.Body.String())
+	}
+
+	authorReq := httptest.NewRequest(http.MethodGet, "/api/me/books", nil)
+	authorReq.Header.Set("Authorization", "Bearer "+readerToken)
+	authorRec := httptest.NewRecorder()
+	handler.ServeHTTP(authorRec, authorReq)
+
+	if authorRec.Code != http.StatusOK {
+		t.Fatalf("author endpoint expected 200, got %d body=%s", authorRec.Code, authorRec.Body.String())
+	}
+}
+
 func TestOperatorsRequiresSuperAdmin(t *testing.T) {
 	handler, tokens := testHandler(t)
 	token, err := tokens.IssueOperator(identityentity.Operator{ID: 99, Username: "reviewer", Role: shared.RoleReviewer})
@@ -263,6 +292,25 @@ func testHandler(t *testing.T) (http.Handler, *jwt.Manager) {
 	return h.Routes(), tokens
 }
 
+func testPromoteAwareHandler(t *testing.T) (http.Handler, *jwt.Manager) {
+	t.Helper()
+	tokens := jwt.NewManager([]byte("test-secret"), time.Hour)
+	repo := newMutableIdentityRepo()
+	identityQueries := identityapp.NewQueries(repo, repo, repo)
+	identityCommands := identityapp.NewCommands(repo, repo, repo, tokens, tokens, fakeFileStore{})
+	bookQueries := bookapp.NewQueries(fakeBookRepo{})
+	bookCommands := bookapp.NewCommands(fakeBookRepo{}, fakeCategoryRepo{})
+	bookshelfQueries := bookshelfapp.NewQueries(fakeBookshelfRepo{})
+	bookshelfCommands := bookshelfapp.NewCommands(fakeBookshelfRepo{})
+	categoryQueries := categoryapp.NewQueries(fakeCategoryRepo{})
+	categoryCommands := categoryapp.NewCommands(fakeCategoryRepo{})
+	siteQueries := siteapp.NewQueries(fakeSiteRepo{})
+	siteCommands := siteapp.NewCommands(fakeSiteRepo{}, fakeFileStore{})
+	uploadSvc := uploadapp.NewService(fakeBookRepo{}, fakeCategoryRepo{}, fakeUploadRepo{}, fakeFileStore{}, fakeFileStore{}, fakeParser{})
+	h := New(identityQueries, identityCommands, bookQueries, bookCommands, bookshelfQueries, bookshelfCommands, categoryQueries, categoryCommands, siteQueries, siteCommands, uploadSvc, tokens, 1024, 1024, t.TempDir(), 1024, t.TempDir(), t.TempDir(), "")
+	return h.Routes(), tokens
+}
+
 func assertErrorCode(t *testing.T, body, want string) {
 	t.Helper()
 	var got struct {
@@ -277,6 +325,19 @@ func assertErrorCode(t *testing.T, body, want string) {
 }
 
 type fakeIdentityRepo struct{}
+
+type mutableIdentityRepo struct {
+	fakeIdentityRepo
+	userRoles map[int64]shared.Role
+}
+
+func newMutableIdentityRepo() *mutableIdentityRepo {
+	return &mutableIdentityRepo{
+		userRoles: map[int64]shared.Role{
+			7: shared.RoleReader,
+		},
+	}
+}
 
 func (fakeIdentityRepo) CreateUser(context.Context, string, string, shared.Role) (identityentity.User, error) {
 	return identityentity.User{}, nil
@@ -299,6 +360,20 @@ func (fakeIdentityRepo) FindUserByID(_ context.Context, id int64) (identityentit
 	}
 	avatar := "avatar.png"
 	return identityentity.User{ID: id, Username: "reader", Nickname: "reader", AvatarPath: &avatar, Role: role}, nil
+}
+
+func (r *mutableIdentityRepo) FindUserByID(_ context.Context, id int64) (identityentity.User, error) {
+	role := r.userRoles[id]
+	if role == "" {
+		role = shared.RoleReader
+	}
+	username := "reader"
+	if id == 1 {
+		username = "author"
+		role = shared.RoleAuthor
+	}
+	avatar := "avatar.png"
+	return identityentity.User{ID: id, Username: username, Nickname: username, AvatarPath: &avatar, Role: role}, nil
 }
 
 func (fakeIdentityRepo) FindUserAvatarByID(context.Context, int64) (string, error) {
@@ -324,6 +399,16 @@ func (fakeIdentityRepo) UpdateUserPassword(context.Context, int64, string) error
 
 func (fakeIdentityRepo) PromoteUserToAuthor(_ context.Context, id int64) (identityentity.User, error) {
 	return identityentity.User{ID: id, Username: "reader", Nickname: "reader", Role: shared.RoleAuthor}, nil
+}
+
+func (r *mutableIdentityRepo) PromoteUserToAuthor(_ context.Context, id int64) (identityentity.User, error) {
+	r.userRoles[id] = shared.RoleAuthor
+	username := "reader"
+	if id == 1 {
+		username = "author"
+	}
+	avatar := "avatar.png"
+	return identityentity.User{ID: id, Username: username, Nickname: username, AvatarPath: &avatar, Role: shared.RoleAuthor}, nil
 }
 
 func (fakeIdentityRepo) CreateOperator(_ context.Context, username, passwordHash string, role shared.Role) (identityentity.Operator, error) {

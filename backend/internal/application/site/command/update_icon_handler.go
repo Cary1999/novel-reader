@@ -57,6 +57,6 @@ func uploadSiteIconError(err error) error {
 	case strings.Contains(message, "empty file"):
 		return shared.NewError(http.StatusBadRequest, "BAD_REQUEST", "site icon is empty")
 	default:
-		return shared.NewError(http.StatusBadRequest, "BAD_REQUEST", "invalid upload")
+		return shared.NewError(http.StatusBadRequest, "BAD_REQUEST", message)
 	}
 }

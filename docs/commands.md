@@ -74,7 +74,8 @@ cd frontend && npm run dev
 
 补充说明：
 
-- 本地从 `backend/` 目录执行 `go run ./cmd/server` 时，默认相对存储目录会自动解析到仓库根目录下的 `data/uploads`、`data/uploads/covers` 和 `data/uploads/avatars`，与 Docker 运行时保持一致。
+- 本地从 `backend/` 目录执行 `go run ./cmd/server` 时，`.env` 里建议使用相对存储目录，例如 `data/uploads`、`data/uploads/covers` 和 `data/uploads/avatars`，这样会自动解析到仓库根目录下。
+- Docker Compose 运行时可以继续把这些目录覆盖成容器内路径，例如 `/app/data/uploads`。
 - 如需自定义位置，显式设置 `UPLOAD_DIR`、`COVER_DIR` 和 `AVATAR_DIR` 即可。
 - 头像大小限制由 `MAX_AVATAR_BYTES` 控制，默认 5MB。
 - Phase 10 目标端口规划：

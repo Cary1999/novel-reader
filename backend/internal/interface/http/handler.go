@@ -828,14 +828,41 @@ func (h *Handler) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 			writeError(w, shared.NewError(http.StatusUnauthorized, "UNAUTHORIZED", "login required"))
 			return
 		}
-		actor := shared.Actor{
-			ActorID:  claims.ActorID,
-			Username: claims.Username,
-			Role:     claims.Role,
-			Scope:    claims.Scope,
+		actor, err := h.resolveActor(r.Context(), claims)
+		if err != nil {
+			writeError(w, err)
+			return
 		}
 		next(w, r.WithContext(context.WithValue(r.Context(), actorKey, actor)))
 	}
+}
+
+func (h *Handler) resolveActor(ctx context.Context, claims jwt.Claims) (shared.Actor, error) {
+	actor := shared.Actor{
+		ActorID:  claims.ActorID,
+		Username: claims.Username,
+		Role:     claims.Role,
+		Scope:    claims.Scope,
+	}
+	switch claims.Scope {
+	case shared.ScopeFront:
+		user, err := h.identityQueries.CurrentUser.Handle(ctx, actor)
+		if err != nil {
+			return shared.Actor{}, err
+		}
+		actor.Username = user.Username
+		actor.Role = user.Role
+	case shared.ScopeAdmin:
+		operator, err := h.identityQueries.CurrentOperator.Handle(ctx, actor)
+		if err != nil {
+			return shared.Actor{}, err
+		}
+		actor.Username = operator.Username
+		actor.Role = operator.Role
+	default:
+		return shared.Actor{}, shared.NewError(http.StatusUnauthorized, "UNAUTHORIZED", "login required")
+	}
+	return actor, nil
 }
 
 func (h *Handler) requireFront(next http.HandlerFunc) http.HandlerFunc {
@@ -926,7 +953,7 @@ func writeError(w http.ResponseWriter, err error) {
 		writeJSON(w, appErr.Status, map[string]string{"code": appErr.Code, "message": appErr.Message})
 		return
 	}
-	writeJSON(w, http.StatusInternalServerError, map[string]string{"code": "INTERNAL", "message": "internal server error"})
+	writeJSON(w, http.StatusInternalServerError, map[string]string{"code": "INTERNAL", "message": err.Error()})
 }
 
 func publicUser(user identityentity.User) map[string]any {

@@ -2,7 +2,17 @@ import { BookOpen, ChevronRight, Pin } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { BookSummary } from "../api/types";
 
-export function BookCard({ book, isPinned = false }: { book: BookSummary; isPinned?: boolean }) {
+export function BookCard({
+  book,
+  isPinned = false,
+  isInBookshelf = false,
+  showBookshelfStatus = false,
+}: {
+  book: BookSummary;
+  isPinned?: boolean;
+  isInBookshelf?: boolean;
+  showBookshelfStatus?: boolean;
+}) {
   return (
     <article className="book-card">
       <div className="book-cover" aria-hidden="true">
@@ -29,6 +39,7 @@ export function BookCard({ book, isPinned = false }: { book: BookSummary; isPinn
         <p className="description">{book.description || "暂无简介"}</p>
         <div className="book-card-tag-row">
           <span className="book-chip">{book.category || "未分类"}</span>
+          {showBookshelfStatus && isInBookshelf ? <span className="book-chip book-chip-state">已加入书架</span> : null}
         </div>
         <div className="book-card-footer">
           <span>最新：{book.latestChapterTitle || "暂无章节"}</span>

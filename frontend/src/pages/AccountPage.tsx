@@ -8,6 +8,7 @@ export function AccountPage() {
   const frontUser = user && "nickname" in user ? user : null;
   const [nickname, setNickname] = useState(frontUser?.nickname ?? frontUser?.username ?? "");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState("");
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [penName, setPenName] = useState("");
@@ -23,6 +24,18 @@ export function AccountPage() {
   useEffect(() => {
     setNickname(frontUser?.nickname ?? frontUser?.username ?? "");
   }, [frontUser]);
+
+  useEffect(() => {
+    if (!avatarFile) {
+      setAvatarPreviewUrl("");
+      return;
+    }
+    const objectUrl = URL.createObjectURL(avatarFile);
+    setAvatarPreviewUrl(objectUrl);
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [avatarFile]);
 
   useEffect(() => {
     if (!isReader) {
@@ -68,6 +81,7 @@ export function AccountPage() {
       await apiClient.uploadAvatar(avatarFile);
       await refreshUser();
       setAvatarFile(null);
+      setAvatarPreviewUrl("");
       setMessage("头像已更新");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "头像上传失败");
@@ -135,7 +149,7 @@ export function AccountPage() {
         <form className="panel form-stack" onSubmit={saveAvatar}>
           <p className="eyebrow">头像</p>
           <div className="avatar-preview">
-            {frontUser?.avatarUrl ? <img src={frontUser.avatarUrl} alt="" /> : null}
+            {avatarPreviewUrl ? <img src={avatarPreviewUrl} alt="" /> : frontUser?.avatarUrl ? <img src={frontUser.avatarUrl} alt="" /> : null}
           </div>
           <label>
             上传头像

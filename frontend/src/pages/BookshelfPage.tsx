@@ -225,7 +225,6 @@ export function BookshelfPage() {
     <main className="page shell">
       <section className="page-banner">
         <div>
-          <p className="eyebrow">我的书架</p>
           <h1>书和分组放在一起看</h1>
           <p className="muted">未分组的书直接躺在书架里，收进分组的书会折叠成同级入口，点进去再继续整理。</p>
         </div>
@@ -235,8 +234,7 @@ export function BookshelfPage() {
 
       <section className="section-heading">
         <div>
-          <p className="eyebrow">书架首页</p>
-          <h2>未分组书籍与分组入口</h2>
+          <h2>我的书架</h2>
         </div>
       </section>
 
@@ -355,12 +353,6 @@ export function BookshelfPage() {
         </>
       ) : null}
 
-      {!isLoadingGroups && !isLoadingEntries && !error && visibleGroups.length === 0 && entries.length > 0 ? (
-        <section className="panel ambient-panel bookshelf-tip-panel">
-          <FolderOpen size={18} aria-hidden="true" />
-          <p className="muted">现在所有书都直接放在书架首页。通过卡片右上角菜单把书移进新分组，这里就会折叠出新的分组入口。</p>
-        </section>
-      ) : null}
       <BookshelfMoveDialog
         entry={movingEntry}
         groups={groups}

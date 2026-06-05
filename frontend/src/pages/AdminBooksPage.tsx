@@ -1,5 +1,5 @@
 import { LibraryBig, Plus, RefreshCw, Save, Trash2, Upload, X } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { apiClient, ApiError } from "../api/client";
 import type { BookSummary, Category, ChapterDetail, ChapterSummary, UploadSummary } from "../api/types";
 import { EmptyState, ErrorState, LoadingState } from "../components/StateViews";
@@ -19,6 +19,8 @@ type ChapterForm = {
   content: string;
 };
 
+type WorkspaceSection = "basic" | "cover" | "chapters";
+
 const emptyBookForm: BookForm = {
   title: "",
   categoryId: "",
@@ -30,6 +32,19 @@ const emptyChapterForm: ChapterForm = {
   title: "",
   content: "",
 };
+
+function formatDateTime(value?: string | null) {
+  if (!value) return "";
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return "";
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(timestamp);
+}
 
 export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
   const [query, setQuery] = useState("");
@@ -47,6 +62,8 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
   const [isSavingChapter, setIsSavingChapter] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [activeSection, setActiveSection] = useState<WorkspaceSection>("basic");
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [coverPreviewUrl, setCoverPreviewUrl] = useState<string>("");
   const [pendingCoverFile, setPendingCoverFile] = useState<File | null>(null);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
@@ -123,7 +140,8 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
         file: uploadFile!,
       });
       setUploadSummary(response);
-      setMessage("上传解析完成");
+      setMessage("导入解析完成");
+      setLastSavedAt(new Date().toISOString());
       setIsUploadOpen(false);
       setPage(1);
       await loadBooks(1);
@@ -156,11 +174,16 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
     }
   }
 
-  async function selectBook(book: BookSummary, options?: { preservePendingCover?: boolean }) {
+  async function selectBook(
+    book: BookSummary,
+    options?: { preservePendingCover?: boolean; lastSavedAt?: string | null },
+  ) {
     try {
       setError("");
       setMessage("");
       setIsCreating(false);
+      setActiveSection("basic");
+      setLastSavedAt(options?.lastSavedAt ?? null);
       if (!options?.preservePendingCover) {
         clearPendingCover();
       }
@@ -188,6 +211,8 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
     setChapters([]);
     setChapterForm(emptyChapterForm);
     setIsCreating(false);
+    setActiveSection("basic");
+    setLastSavedAt(null);
     clearPendingCover();
   }
 
@@ -196,6 +221,8 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
     setIsCreating(true);
     setMessage("");
     setError("");
+    setActiveSection("basic");
+    setLastSavedAt(null);
   }
 
   async function handleSearch(event: FormEvent<HTMLFormElement>) {
@@ -219,6 +246,7 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
       setError("");
       if (isCreating) {
         const coverFile = pendingCoverFile;
+        const savedAt = new Date().toISOString();
         const created = await apiClient.createBook({
           title: bookForm.title.trim(),
           categoryId: bookForm.categoryId,
@@ -242,7 +270,7 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
         setIsCreating(false);
         setPage(1);
         await loadBooks(1);
-        await selectBook(created, { preservePendingCover: Boolean(coverUploadError) });
+        await selectBook(created, { preservePendingCover: Boolean(coverUploadError), lastSavedAt: savedAt });
         if (coverUploadError) {
           setError(`小说已创建，但封面上传失败：${coverUploadError}`);
           setMessage("");
@@ -255,6 +283,7 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
           categoryId: bookForm.categoryId,
           description: bookForm.description.trim(),
         };
+        const savedAt = new Date().toISOString();
         const updated = await apiClient.updateBook(selectedBook.id, payload);
         let nextSelected = { ...selectedBook, ...updated };
         setSelectedBook(nextSelected);
@@ -276,6 +305,7 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
         } else {
           setMessage("小说基础信息已保存");
         }
+        setLastSavedAt(savedAt);
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "保存小说失败");
@@ -302,6 +332,7 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
     if (!selectedBook) return;
     try {
       setError("");
+      setActiveSection("chapters");
       const detail: ChapterDetail = await apiClient.chapter(selectedBook.id, chapter.id);
       setChapterForm({ id: detail.id, title: detail.title, content: detail.content });
     } catch (err) {
@@ -327,7 +358,8 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
         await apiClient.addChapter(selectedBook.id, payload);
         setMessage("新章节已追加");
       }
-      await selectBook(selectedBook);
+      setActiveSection("chapters");
+      await selectBook(selectedBook, { lastSavedAt: new Date().toISOString() });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "保存章节失败");
     } finally {
@@ -342,7 +374,8 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
       setError("");
       await apiClient.deleteChapter(selectedBook.id, chapter.id);
       setMessage("章节已删除并重新排序");
-      await selectBook(selectedBook);
+      setActiveSection("chapters");
+      await selectBook(selectedBook, { lastSavedAt: new Date().toISOString() });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "删除章节失败");
     }
@@ -353,10 +386,39 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
-  const selectedHeading = useMemo(() => {
-    if (isCreating) return "新建小说";
-    return selectedBook ? `管理《${selectedBook.title}》` : "选择一本小说";
-  }, [isCreating, selectedBook]);
+  const hasEditorTarget = Boolean(selectedBook || isCreating);
+  const overviewTitle = isCreating ? "新建小说" : selectedBook?.title ?? "还没有打开作品";
+  const overviewCoverUrl = coverPreviewUrl || selectedBook?.coverUrl || "";
+  const selectedCategoryName = isCreating
+    ? (bookForm.categoryId ? categories.find((item) => String(item.id) === bookForm.categoryId)?.name ?? "未分类" : "未选择")
+    : (selectedBook?.category || "未分类");
+  const overviewMeta = isCreating
+    ? [
+        { label: "作者", value: "当前账号" },
+        { label: "分类", value: selectedCategoryName },
+        { label: "章节", value: "0 章" },
+      ]
+    : [
+        { label: "作者", value: selectedBook?.author ?? "未知" },
+        { label: "分类", value: selectedCategoryName },
+        { label: "章节", value: `${selectedBook?.chapterCount ?? 0} 章` },
+      ];
+  const canEditChapters = Boolean(selectedBook && !isCreating);
+  const overviewStatusText = pendingCoverFile
+    ? isCreating
+      ? "封面待随作品创建"
+      : "封面待保存"
+    : lastSavedAt
+      ? `最近保存 ${formatDateTime(lastSavedAt)}`
+      : selectedBook?.createdAt
+        ? `创建于 ${formatDateTime(selectedBook.createdAt)}`
+        : "等待编辑";
+  const overviewLatestText = isCreating
+    ? "待创建后自动生成目录"
+    : selectedBook?.latestChapterTitle
+      ? `最新章节：${selectedBook.latestChapterTitle}`
+      : "暂无章节";
+  const summaryCoverLabel = overviewCoverUrl ? "已设置封面" : "暂无封面";
 
   const content = (
     <>
@@ -364,7 +426,7 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
         <div>
           <p className="eyebrow">{toolLabel}</p>
           <h1>{pageTitle}</h1>
-          <p className="muted">维护基础信息、章节正文、章节更新和删除操作。</p>
+          <p className="muted">按作品概览、基础信息、封面和章节拆开编辑，先看清状态，再进入具体操作。</p>
         </div>
         <div className="detail-actions">
           <button className="primary-button compact" type="button" onClick={startCreate}>
@@ -373,145 +435,303 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
           </button>
           <button className="ghost-button compact" type="button" onClick={openUploadModal}>
             <Upload size={16} aria-hidden="true" />
-            上传 txt
+            导入 txt
           </button>
         </div>
       </section>
 
       {message ? <p className="success-banner">{message}</p> : null}
-      {error ? <ErrorState message={error} onRetry={() => loadBooks(page)} /> : null}
+      {error && !hasEditorTarget && !books.length ? <ErrorState message={error} onRetry={() => loadBooks(page)} /> : null}
+      {error && (hasEditorTarget || books.length > 0) ? <p className="form-error">{error}</p> : null}
 
-      <section className="admin-manager-grid">
-        <div className="admin-book-list panel">
-          <form className="admin-search" onSubmit={handleSearch}>
+      <section className="author-workspace">
+        <aside className="panel author-library">
+          <div className="section-heading author-library-head">
+            <div>
+              <p className="eyebrow">作品列表</p>
+              <h2>第 {page} 页 / 共 {totalPages} 页</h2>
+            </div>
+            <button className="ghost-button compact" type="button" onClick={() => void loadBooks(page)}>
+              刷新
+            </button>
+          </div>
+
+          <form className="admin-search author-search" onSubmit={handleSearch}>
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索书名或简介" />
             <button className="primary-button compact" type="submit">搜索</button>
           </form>
 
-          {isLoading ? <LoadingState label="正在加载小说..." /> : null}
-          {!isLoading && books.length === 0 ? <EmptyState title="暂无小说" description="新建或上传小说后会出现在这里。" /> : null}
+          {isLoading ? <LoadingState label="正在加载作品..." /> : null}
+          {!isLoading && books.length === 0 ? <EmptyState title="暂无作品" description="先新建小说，或者导入一个 txt 作品。" /> : null}
           {!isLoading && books.length > 0 ? (
-            <div className="admin-books">
+            <div className="author-book-list">
               {books.map((book) => (
                 <button
-                  className={`admin-book-row ${selectedBook?.id === book.id ? "active" : ""}`}
+                  className={`author-book-row ${selectedBook?.id === book.id ? "active" : ""}`}
                   type="button"
                   key={book.id}
                   onClick={() => selectBook(book)}
                 >
-                  <LibraryBig size={18} aria-hidden="true" />
-                  <span>
+                  <span className="author-book-thumb" aria-hidden="true">
+                    {book.coverUrl ? (
+                      <img src={book.coverUrl} alt="" />
+                    ) : (
+                      <LibraryBig size={18} aria-hidden="true" />
+                    )}
+                  </span>
+                  <span className="author-book-copy">
                     <strong>{book.title}</strong>
                     <small>{book.author} · {book.category || "未分类"} · {book.chapterCount} 章</small>
+                    <span>{book.latestChapterTitle ? `最新：${book.latestChapterTitle}` : "暂无章节"}</span>
                   </span>
                 </button>
               ))}
             </div>
           ) : null}
 
-          <div className="pagination compact-pagination">
+          <div className="pagination compact-pagination author-pagination">
             <button className="ghost-button" type="button" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>上一页</button>
             <span>{page} / {totalPages}</span>
             <button className="ghost-button" type="button" disabled={page >= totalPages} onClick={() => setPage((value) => value + 1)}>下一页</button>
           </div>
-        </div>
+        </aside>
 
-        <section className="admin-editor panel">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">{isCreating ? "创建" : "编辑"}</p>
-              <h2>{selectedHeading}</h2>
-            </div>
-            {selectedBook && !isCreating ? (
-              <button className="ghost-button compact danger-button" type="button" onClick={handleDeleteBook}>
-                <Trash2 size={16} aria-hidden="true" />
-                删除整本
-              </button>
-            ) : null}
-          </div>
-
-          {!selectedBook && !isCreating ? <EmptyState title="尚未选择小说" description="从左侧列表选择一本小说，或先新建小说。" /> : null}
-
-          {selectedBook || isCreating ? (
+        <div className="author-main">
+          {hasEditorTarget ? (
             <>
-              <form className="form-stack admin-edit-form" onSubmit={handleSaveBook}>
-                <div className="form-grid">
-                  <label>
-                    书名
-                    <input value={bookForm.title} maxLength={120} onChange={(event) => setBookForm({ ...bookForm, title: event.target.value })} />
-                  </label>
-                  <label>
-                    作者
-                    <input value={isCreating ? "当前作者" : selectedBook?.author ?? ""} disabled />
-                  </label>
-                </div>
-                <label>
-                  分类
-                  <select value={bookForm.categoryId} onChange={(event) => setBookForm({ ...bookForm, categoryId: event.target.value })}>
-                    <option value="">请选择分类</option>
-                    {categories.map((category) => (
-                      <option key={category.id} value={category.id}>{category.name}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  简介
-                  <textarea value={bookForm.description} rows={4} maxLength={1000} onChange={(event) => setBookForm({ ...bookForm, description: event.target.value })} />
-                </label>
-                {selectedBook || isCreating ? (
-                  <label>
-                    书籍封面（可选）
-                    <input
-                      className="cover-file-input"
-                      id="book-cover-file"
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      onChange={(event) => {
-                        const file = event.currentTarget.files?.[0];
-                        if (file && stageCoverFile(file)) {
-                          setMessage(isCreating ? "已选择封面，创建小说时会一并上传" : "已选择新封面，点击保存后生效");
-                        }
-                        event.currentTarget.value = "";
-                      }}
-                    />
-
-                    <div className={`cover-preview ${isUploadingCover ? "is-uploading" : ""}`}>
-                      <label className="cover-preview-hit" htmlFor="book-cover-file" aria-label="点击更换封面">
-                        {coverPreviewUrl || selectedBook?.coverUrl ? (
-                          <img src={coverPreviewUrl || selectedBook?.coverUrl || ""} alt="" />
-                        ) : null}
-                        {!coverPreviewUrl && !selectedBook?.coverUrl ? (
-                          <span className="cover-preview-empty">点击选择封面</span>
-                        ) : null}
-                        {isUploadingCover ? <span className="cover-preview-badge">上传中...</span> : pendingCoverFile ? <span className="cover-preview-badge">{isCreating ? "待创建" : "待保存"}</span> : null}
-                      </label>
+              <section className="panel author-overview">
+                <div className="author-overview-cover">
+                  {overviewCoverUrl ? (
+                    <img src={overviewCoverUrl} alt="" />
+                  ) : (
+                    <div className="author-cover-empty">
+                      <LibraryBig size={28} aria-hidden="true" />
+                      <span>{isCreating ? "待设置封面" : "暂无封面"}</span>
                     </div>
-                    <small className="muted">支持 JPG、PNG、WebP，最大 {MAX_COVER_LABEL}。</small>
-                  </label>
-                ) : null}
-                <button className="primary-button compact" type="submit" disabled={isSavingBook}>
-                  <Save size={16} aria-hidden="true" />
-                  {isSavingBook ? "保存中..." : isCreating ? "创建小说" : "保存基础信息"}
-                </button>
-              </form>
+                  )}
+                </div>
 
-              {!isCreating && selectedBook ? (
-                <div className="chapter-admin">
+                <div className="author-overview-copy">
+                  <p className="eyebrow">作品概览</p>
+                  <h1 className="author-workspace-title">{overviewTitle}</h1>
+
+                  <div className="author-overview-meta">
+                    {overviewMeta.map((item) => (
+                      <div key={item.label} className="author-stat">
+                        <span>{item.label}</span>
+                        <strong>{item.value}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </section>
+
+              <section className="panel author-tabs" aria-label="作品编辑切换">
+                <button
+                  type="button"
+                  className={`author-tab ${activeSection === "basic" ? "active" : ""}`}
+                  onClick={() => setActiveSection("basic")}
+                >
+                  基础信息
+                </button>
+                <button
+                  type="button"
+                  className={`author-tab ${activeSection === "cover" ? "active" : ""}`}
+                  onClick={() => setActiveSection("cover")}
+                >
+                  封面设置
+                </button>
+                <button
+                  type="button"
+                  className={`author-tab ${activeSection === "chapters" ? "active" : ""}`}
+                  onClick={() => setActiveSection("chapters")}
+                  disabled={!canEditChapters}
+                  title={!canEditChapters ? "保存作品后才能管理章节" : undefined}
+                >
+                  章节管理
+                </button>
+                <div className="author-tab-spacer" />
+                <div className="author-tab-actions">
+                  {selectedBook && !isCreating ? (
+                    <button className="ghost-button compact danger-button" type="button" onClick={handleDeleteBook}>
+                      <Trash2 size={16} aria-hidden="true" />
+                      删除作品
+                    </button>
+                  ) : null}
+                </div>
+              </section>
+
+              {activeSection === "basic" ? (
+                <section id="book-info" className="panel author-section author-info-card">
+                <div className="section-heading compact-heading">
+                  <div>
+                    <p className="eyebrow">基础信息</p>
+                    <h2>作品信息与封面设置</h2>
+                  </div>
+                  <div className="detail-actions">
+                    <span className="muted">{overviewStatusText}</span>
+                  </div>
+                </div>
+
+                  <div className="author-basic-grid">
+                    <form id="book-info-form" className="form-stack author-info-form" onSubmit={handleSaveBook}>
+                      <div className="detail-actions author-form-actions author-form-actions-top">
+                        <button className="primary-button compact" type="submit" disabled={isSavingBook}>
+                          <Save size={16} aria-hidden="true" />
+                          {isSavingBook ? "保存中..." : isCreating ? "创建小说" : "保存作品信息"}
+                        </button>
+                        <button
+                          className="ghost-button compact"
+                          type="button"
+                          onClick={() => setBookForm(selectedBook || isCreating ? {
+                            title: isCreating ? "" : selectedBook?.title ?? "",
+                            categoryId: isCreating ? "" : String(selectedBook?.categoryId ?? ""),
+                            description: isCreating ? "" : selectedBook?.description ?? "",
+                          } : emptyBookForm)}
+                        >
+                          <RefreshCw size={16} aria-hidden="true" />
+                          重置表单
+                        </button>
+                      </div>
+                      <div className="form-grid">
+                        <label>
+                          书名
+                          <input value={bookForm.title} maxLength={120} onChange={(event) => setBookForm({ ...bookForm, title: event.target.value })} />
+                        </label>
+                        <label>
+                          分类
+                          <select value={bookForm.categoryId} onChange={(event) => setBookForm({ ...bookForm, categoryId: event.target.value })}>
+                            <option value="">请选择分类</option>
+                            {categories.map((category) => (
+                              <option key={category.id} value={category.id}>{category.name}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          作者
+                          <input value={isCreating ? "当前作者" : selectedBook?.author ?? ""} disabled />
+                        </label>
+                        <label>
+                          保存状态
+                          <input value={overviewStatusText} disabled />
+                        </label>
+                      </div>
+                      <label>
+                        简介
+                        <textarea
+                          value={bookForm.description}
+                          rows={8}
+                          maxLength={1000}
+                          onChange={(event) => setBookForm({ ...bookForm, description: event.target.value })}
+                        />
+                      </label>
+                  </form>
+
+                  <aside className="author-basic-note panel-inset">
+                    <p className="eyebrow">当前状态</p>
+                    <div className="author-side-stats">
+                      <div>
+                        <span>保存状态</span>
+                        <strong>{overviewStatusText}</strong>
+                      </div>
+                      <div>
+                        <span>最新章节</span>
+                        <strong>{overviewLatestText.replace("最新章节：", "")}</strong>
+                      </div>
+                      <div>
+                        <span>封面状态</span>
+                        <strong>{summaryCoverLabel}</strong>
+                      </div>
+                    </div>
+                  </aside>
+                </div>
+                </section>
+              ) : null}
+
+              {activeSection === "cover" ? (
+                <section id="cover" className="panel author-section author-cover-panel">
                   <div className="section-heading compact-heading">
                     <div>
-                      <p className="eyebrow">章节</p>
-                      <h2>{chapters.length} 章</h2>
+                      <p className="eyebrow">封面设置</p>
+                      <h2>封面预览与上传</h2>
                     </div>
-                    <button className="ghost-button compact" type="button" onClick={() => setChapterForm(emptyChapterForm)}>
-                      <Plus size={16} aria-hidden="true" />
-                      新增章节
-                    </button>
+                    <span className="muted">JPG / PNG / WebP，最大 {MAX_COVER_LABEL}</span>
                   </div>
 
-                  <div className="chapter-admin-grid">
-                    <div className="chapter-admin-list">
+                  <div className="author-cover-panel-grid">
+                    <div className="author-cover-stage">
+                      <div className="detail-actions author-form-actions author-form-actions-top">
+                        <label className="ghost-button wide cover-select-button" htmlFor="book-cover-file">
+                          选择封面
+                        </label>
+                        <button className="primary-button compact" type="submit" form="book-info-form">
+                          <Save size={16} aria-hidden="true" />
+                          保存并同步
+                        </button>
+                      </div>
+                      <div className="author-cover-preview large">
+                        {overviewCoverUrl ? (
+                          <img src={overviewCoverUrl} alt="" />
+                        ) : (
+                          <div className="author-cover-empty large">
+                            <Upload size={22} aria-hidden="true" />
+                            <span>当前还没有封面</span>
+                          </div>
+                        )}
+                        {isUploadingCover ? <span className="cover-preview-badge">上传中...</span> : pendingCoverFile ? <span className="cover-preview-badge">{isCreating ? "待创建" : "待保存"}</span> : null}
+                      </div>
+                      <input
+                        className="cover-file-input"
+                        id="book-cover-file"
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        onChange={(event) => {
+                          const file = event.currentTarget.files?.[0];
+                          if (file && stageCoverFile(file)) {
+                            setMessage(isCreating ? "已选择封面，创建小说时会一并上传" : "已选择新封面，保存作品信息后生效");
+                          }
+                          event.currentTarget.value = "";
+                        }}
+                      />
+                    </div>
+
+                    <aside className="author-basic-note panel-inset">
+                      <p className="eyebrow">说明</p>
+                      <ul className="author-tip-list">
+                        <li>封面会在保存作品信息时同步上传。</li>
+                        <li>如果你先选了图，再切去别的 tab，预览会保留。</li>
+                        <li>创建新作品时也可以先预选封面。</li>
+                      </ul>
+                    </aside>
+                  </div>
+                </section>
+              ) : null}
+
+              {activeSection === "chapters" ? (
+                <section id="chapters" className="panel author-section author-chapter-card">
+                  <div className="section-heading compact-heading">
+                    <div>
+                      <p className="eyebrow">章节管理</p>
+                      <h2>{chapters.length} 章</h2>
+                    </div>
+                    <div className="detail-actions">
+                      <button className="ghost-button compact" type="button" onClick={() => { setChapterForm(emptyChapterForm); setActiveSection("chapters"); }}>
+                        <Plus size={16} aria-hidden="true" />
+                        新增章节
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="author-chapter-grid">
+                    <div className="author-chapter-list">
+                      <div className="detail-actions author-form-actions author-form-actions-top">
+                        <button className="ghost-button compact" type="button" onClick={() => { setChapterForm(emptyChapterForm); setActiveSection("chapters"); }}>
+                          <Plus size={16} aria-hidden="true" />
+                          新增章节
+                        </button>
+                      </div>
                       {chapters.map((chapter) => (
-                        <div className="chapter-admin-row" key={chapter.id}>
+                        <div className="author-chapter-row" key={chapter.id}>
                           <button type="button" onClick={() => editChapter(chapter)}>
                             <span>{chapter.index}</span>
                             <strong>{chapter.title}</strong>
@@ -521,20 +741,18 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
                           </button>
                         </div>
                       ))}
-                      {chapters.length === 0 ? <EmptyState title="暂无章节" description="可以在右侧新增第一章。" /> : null}
+                      {chapters.length === 0 ? <EmptyState title="暂无章节" description="先新增第一章，或者从左侧选择别的作品。" /> : null}
                     </div>
 
-                    <form className="form-stack chapter-edit-form" onSubmit={handleSaveChapter}>
-                      <p className="eyebrow">{chapterForm.id ? "编辑章节" : "新增章节"}</p>
-                      <label>
-                        章节标题
-                        <input value={chapterForm.title} maxLength={120} onChange={(event) => setChapterForm({ ...chapterForm, title: event.target.value })} />
-                      </label>
-                      <label>
-                        正文
-                        <textarea value={chapterForm.content} rows={12} onChange={(event) => setChapterForm({ ...chapterForm, content: event.target.value })} />
-                      </label>
-                      <div className="detail-actions">
+                    <form className="form-stack author-chapter-editor" onSubmit={handleSaveChapter}>
+                      <div className="section-heading compact-heading">
+                        <div>
+                          <p className="eyebrow">{chapterForm.id ? "编辑章节" : "新增章节"}</p>
+                          <h2>{chapterForm.id ? "当前章节" : "准备写入新章节"}</h2>
+                        </div>
+                        <span className="muted">{chapterForm.id ? "编辑模式" : "新增模式"}</span>
+                      </div>
+                      <div className="detail-actions author-form-actions author-form-actions-top">
                         <button className="primary-button compact" type="submit" disabled={isSavingChapter}>
                           <Save size={16} aria-hidden="true" />
                           {isSavingChapter ? "保存中..." : "保存章节"}
@@ -546,22 +764,34 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
                           </button>
                         ) : null}
                       </div>
+                      <label>
+                        章节标题
+                        <input value={chapterForm.title} maxLength={120} onChange={(event) => setChapterForm({ ...chapterForm, title: event.target.value })} />
+                      </label>
+                      <label>
+                        正文
+                        <textarea value={chapterForm.content} rows={14} onChange={(event) => setChapterForm({ ...chapterForm, content: event.target.value })} />
+                      </label>
                     </form>
                   </div>
-                </div>
+                </section>
               ) : null}
             </>
-          ) : null}
-        </section>
+          ) : (
+            <section className="panel author-empty-panel">
+              <EmptyState title="还没有打开作品" description="从左侧选择一本作品，或者先新建小说、导入 txt 开始编辑。" />
+            </section>
+          )}
+        </div>
       </section>
 
       {isUploadOpen ? (
-        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="上传 txt 小说">
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="导入 txt 作品">
           <div className="modal panel">
             <div className="modal-head">
               <div>
                 <p className="eyebrow">{toolLabel}</p>
-                <h2>上传 txt 小说</h2>
+                <h2>导入 txt 作品</h2>
               </div>
               <button className="ghost-button icon-button" type="button" onClick={() => setIsUploadOpen(false)} aria-label="关闭">
                 <X size={18} aria-hidden="true" />
@@ -604,7 +834,7 @@ export function AdminBooksPage({ embedded = false }: { embedded?: boolean }) {
                 <button className="ghost-button" type="button" onClick={() => setIsUploadOpen(false)}>取消</button>
                 <button className="primary-button" type="button" disabled={isUploadingTxt} onClick={() => void submitUpload()}>
                   <Upload size={18} aria-hidden="true" />
-                  {isUploadingTxt ? "上传解析中..." : "上传并解析"}
+                  {isUploadingTxt ? "解析中..." : "上传并解析"}
                 </button>
               </div>
             </div>
